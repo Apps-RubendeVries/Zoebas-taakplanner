@@ -1,31 +1,323 @@
 <!DOCTYPE html>
-<html lang="nl" data-theme="dark">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<html lang="nl" data-theme="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>basketbal-indeling-app</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    :root { --text-xs:clamp(.75rem,.7rem + .25vw,.875rem); --text-sm:clamp(.875rem,.8rem + .35vw,1rem); --text-base:clamp(1rem,.95rem + .25vw,1.125rem); --text-lg:clamp(1.125rem,1rem + .75vw,1.5rem); --text-xl:clamp(1.5rem,1.2rem + 1.25vw,2rem); --space-1:.25rem; --space-2:.5rem; --space-3:.75rem; --space-4:1rem; --space-5:1.25rem; --space-6:1.5rem; --space-8:2rem; --space-10:2.5rem; --radius-sm:.375rem; --radius-md:.5rem; --radius-lg:.75rem; --radius-xl:1rem; --radius-full:9999px; --font-display:'Barlow',sans-serif; --font-body:'Inter',sans-serif; --color-bg:#0d0d0d; --color-surface:#161616; --color-surface-2:#1d1d1d; --color-surface-3:#242424; --color-border:#313131; --color-text:#fff; --color-muted:#ccc; --color-faint:#8a8a8a; --color-primary:#ff6b00; --color-primary-hover:#ff8230; --color-primary-soft:rgba(255,107,0,.12); --color-success:#4caf50; --color-warning:#ffb020; --color-error:#ff6e6e; }
-    *{box-sizing:border-box} body{margin:0;font-family:var(--font-body);background:var(--color-bg);color:var(--color-text);font-size:var(--text-base)} button,input,select,textarea{font:inherit} .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh} .sidebar{padding:var(--space-6);border-right:1px solid var(--color-border);background:linear-gradient(180deg,#111,#0d0d0d);position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto} .brand{display:flex;gap:var(--space-3);align-items:center;margin-bottom:var(--space-8)} .logo{width:46px;height:46px;border-radius:50%;background:repeating-linear-gradient(45deg,var(--color-primary),var(--color-primary) 6px,#111 6px,#111 12px)} .brand h1{margin:0;font-family:var(--font-display);font-size:var(--text-lg)} .brand p{margin:0;color:var(--color-faint);font-size:var(--text-xs)} .nav{display:grid;gap:var(--space-2)} .nav button{display:flex;gap:var(--space-3);align-items:center;width:100%;padding:.9rem 1rem;border-radius:var(--radius-lg);border:1px solid transparent;background:transparent;color:var(--color-muted);cursor:pointer;text-align:left} .nav button.active,.nav button:hover{background:var(--color-primary-soft);border-color:rgba(255,107,0,.2);color:#fff} .topbar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--color-border);background:rgba(13,13,13,.9);backdrop-filter:blur(8px)} .topbar h2{margin:0;font-family:var(--font-display);font-size:var(--text-xl)} .content{padding:var(--space-6);display:grid;gap:var(--space-6)} .card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-xl);padding:var(--space-5)} .grid{display:grid;gap:var(--space-4)} .stats{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))} .section-title{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3)} .section-title h3{margin:0;font-family:var(--font-display);font-size:var(--text-lg)} .toolbar,.row{display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap} .btn,.file-label{display:inline-flex;align-items:center;gap:.5rem;padding:.8rem 1rem;border-radius:var(--radius-md);background:var(--color-primary);color:#fff;border:none;cursor:pointer;text-decoration:none} .btn:hover,.file-label:hover{background:var(--color-primary-hover)} .btn.secondary{background:var(--color-surface-2);border:1px solid var(--color-border)} .btn.secondary:hover,.btn.ghost:hover{background:var(--color-surface-3)} .btn.ghost{background:transparent;border:1px solid var(--color-border);color:var(--color-muted)} .hidden{display:none!important} .faint{color:var(--color-faint)} .small{font-size:var(--text-sm)} .stat-value{font-family:var(--font-display);font-size:var(--text-xl)} .table-wrap{overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg)} table{width:100%;border-collapse:collapse;min-width:880px} th,td{padding:.8rem .9rem;border-bottom:1px solid var(--color-border);text-align:left;vertical-align:top} th{background:var(--color-surface-2);color:var(--color-muted);font-size:var(--text-sm)} .badge{display:inline-flex;gap:.35rem;align-items:center;padding:.25rem .6rem;border-radius:var(--radius-full);font-size:var(--text-xs);border:1px solid transparent} .badge.ok{background:rgba(76,175,80,.12);color:#9de0a1;border-color:rgba(76,175,80,.25)} .badge.warn{background:rgba(255,176,32,.12);color:#ffd58f;border-color:rgba(255,176,32,.25)} .badge.err{background:rgba(255,110,110,.12);color:#ffb0b0;border-color:rgba(255,110,110,.25)} .badge.neutral{background:rgba(255,255,255,.06);color:var(--color-muted);border-color:rgba(255,255,255,.08)} input[type=text],input[type=date],input[type=time],input[type=search],select,textarea{width:100%;padding:.8rem .85rem;background:#101010;border:1px solid var(--color-border);border-radius:var(--radius-md);color:#fff} textarea{min-height:88px} .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-4)} .panel-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:var(--space-4)} .assignment-list{display:grid;gap:var(--space-3)} .assignment-role{display:grid;grid-template-columns:170px 1fr auto;gap:var(--space-3);align-items:center;padding:.9rem;border-radius:var(--radius-lg);border:1px solid var(--color-border);background:var(--color-surface-2)} .match-card{display:grid;gap:var(--space-2);padding:var(--space-4);border-radius:var(--radius-lg);border:1px solid var(--color-border);background:var(--color-surface-2)} .progress{height:10px;border-radius:999px;background:#222;overflow:hidden} .progress>span{display:block;height:100%;background:linear-gradient(90deg,var(--color-primary),#ffa25a)} .toast-wrap{position:fixed;right:16px;bottom:16px;display:grid;gap:8px;z-index:30} .toast{min-width:260px;padding:.9rem 1rem;border-left:4px solid var(--color-primary);border-radius:var(--radius-md);background:#111;border:1px solid var(--color-border)} dialog{border:none;padding:0;background:transparent;max-width:min(920px,96vw)} dialog::backdrop{background:rgba(0,0,0,.6)} .modal{background:var(--color-surface);border:1px solid var(--color-border);border-radius:20px;padding:var(--space-5)} .modal h3{margin:0 0 var(--space-4);font-family:var(--font-display)} .pill{padding:.35rem .65rem;border-radius:var(--radius-full);border:1px solid var(--color-border);background:var(--color-surface-2);display:inline-flex;align-items:center;gap:.35rem} .week-tabs{display:flex;gap:.5rem;flex-wrap:wrap} .week-tab{padding:.45rem .75rem;border-radius:var(--radius-full);border:1px solid var(--color-border);background:var(--color-surface-2);cursor:pointer} .week-tab.active{background:var(--color-primary-soft);border-color:rgba(255,107,0,.3)}
-    .hist-row{display:grid;grid-template-columns:150px 1fr 60px;gap:.75rem;align-items:center} .hist-track{background:#101010;border:1px solid var(--color-border);border-radius:999px;overflow:hidden;height:18px} .hist-bar{display:flex;height:100%;min-width:3px;border-radius:999px;overflow:hidden} .hist-ref{background:var(--color-primary)} .hist-jury{background:#d8d8d8} .hist-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .hist-val{text-align:right} .legend{display:inline-flex;align-items:center;gap:.4rem;margin-right:1rem} .legend .dot{width:12px;height:12px;border-radius:3px;display:inline-block} .sort-btn{padding:.4rem .7rem;border-radius:var(--radius-full);border:1px solid var(--color-border);background:var(--color-surface-2);color:var(--color-muted);cursor:pointer;font-size:var(--text-sm)} .sort-btn.active{background:var(--color-primary-soft);border-color:rgba(255,107,0,.3);color:#fff}
-    .day-header{display:flex;align-items:center;gap:.6rem;margin:var(--space-3) 0 0;font-family:var(--font-display);font-size:var(--text-base);color:var(--color-muted);text-transform:capitalize} .day-header::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--color-primary)} .match-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);cursor:pointer;flex-wrap:wrap} .match-head .chev{transition:transform .15s} .match-head.open .chev{transform:rotate(90deg)} .assignment-role.compact{display:grid;grid-template-columns:1fr auto;gap:.5rem .75rem;align-items:center;padding:.55rem .7rem} .assignment-role.compact .role-label{grid-column:1/-1;display:flex;align-items:baseline;gap:.5rem} .assignment-role.compact .role-label strong{font-size:var(--text-sm)} .lic-select{max-width:160px;padding:.3rem .5rem;font-size:var(--text-xs);margin-left:auto} .date-field{display:inline-flex;align-items:center;gap:.25rem} .date-field input[type=text]{width:120px} .date-field input[type=date]{width:42px;padding:.55rem .4rem;color:transparent} .date-field input[type=date]::-webkit-datetime-edit{display:none} .date-field input[type=date]::-webkit-calendar-picker-indicator{opacity:1;cursor:pointer;filter:invert(1)} .indeling-table{min-width:1120px} .indeling-table td{vertical-align:top} .cell-stack{display:flex;flex-direction:column;gap:.25rem;min-width:150px} .cell-lic{padding:.25rem .4rem;font-size:var(--text-xs);max-width:150px;color:var(--color-faint)} .cell-assign-wrap{display:flex;align-items:center;gap:.3rem} .cell-assign{padding:.4rem .5rem;font-size:var(--text-xs)} .warnmark{color:var(--color-warning);cursor:help} .mini-btn{display:inline-flex;align-items:center;gap:.25rem;padding:.4rem .5rem;border-radius:var(--radius-sm);border:1px solid var(--color-border);background:var(--color-surface-2);color:var(--color-muted);cursor:pointer;font-size:var(--text-xs);margin:0 1px} .mini-btn:hover{background:var(--color-surface-3)} .mini-btn.danger{border-color:rgba(255,110,110,.4);color:#ffb0b0} .nowrap{white-space:nowrap} .cell-search-wrap{position:relative} .cell-search{padding:.3rem .45rem;font-size:var(--text-xs);width:100%;max-width:170px} .suggest{display:flex;flex-direction:column;gap:2px;margin-top:2px} .suggest-item{padding:.3rem .45rem;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);cursor:pointer;font-size:var(--text-xs)} .suggest-item:hover{background:var(--color-surface-3)} .suggest-empty{padding:.3rem .45rem;color:var(--color-faint);font-size:var(--text-xs)} .sum{color:var(--color-muted);margin-top:var(--space-2)} .btn.danger,.sort-btn.danger{background:transparent;border:1px solid rgba(255,110,110,.4);color:#ffb0b0} .btn.danger:hover{background:rgba(255,110,110,.12)}
-    @media(max-width:1024px){.app{grid-template-columns:1fr}.sidebar{border-right:none;border-bottom:1px solid var(--color-border);position:static;height:auto;overflow:visible}.panel-grid{grid-template-columns:1fr}} @media(max-width:760px){.topbar{flex-direction:column;align-items:flex-start}.assignment-role{grid-template-columns:1fr}.assignment-role.compact{grid-template-columns:1fr}.hist-row{grid-template-columns:100px 1fr 50px}}
-  </style>
+  :root{
+    --bg:#0d0d0d; --surface:#161616; --surface-2:#1c1c1c; --surface-3:#242424;
+    --border:#2c2c2c; --border-soft:#222;
+    --text:#f2f2f2; --muted:#b4b4b4; --faint:#7d7d7d;
+    --primary:#ff6b00; --primary-hover:#ff8230; --primary-soft:rgba(255,107,0,.13);
+    --good:#42b86a; --good-soft:rgba(66,184,106,.14);
+    --warn:#f0a93b; --warn-soft:rgba(240,169,59,.14);
+    --block:#f0584f; --block-soft:rgba(240,88,79,.14);
+    --display:'Barlow',sans-serif; --body:'Inter',sans-serif;
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px; --r-full:999px;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--body);background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select,textarea{font:inherit}
+  ::selection{background:var(--primary-soft)}
+  .hidden{display:none!important}
+  .faint{color:var(--faint)}
+  .small{font-size:12.5px}
+  .nowrap{white-space:nowrap}
+
+  /* ---------- shell ---------- */
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  .sidebar{border-right:1px solid var(--border);background:linear-gradient(180deg,#121212,#0c0c0c);padding:var(--sp-6) var(--sp-5);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:var(--sp-6)}
+  .brand{display:flex;align-items:center;gap:var(--sp-3)}
+  .brand .mark{width:42px;height:42px;border-radius:12px;flex:none;background:repeating-linear-gradient(48deg,var(--primary),var(--primary) 5px,#161616 5px,#161616 10px);box-shadow:0 0 0 1px var(--border)}
+  .brand .name{font-family:var(--display);font-weight:700;font-size:16px;line-height:1.2;letter-spacing:.2px}
+  .brand .sub{font-size:11px;color:var(--faint);letter-spacing:.3px;margin-top:4px;line-height:1.3}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav button{display:flex;align-items:center;gap:var(--sp-3);padding:10px 12px;border-radius:var(--r-md);color:var(--muted);font-weight:500;text-align:left;transition:color .12s;width:100%}
+  .nav button:hover{background:var(--surface-2);color:var(--text)}
+  .nav button.active{background:var(--primary-soft);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,107,0,.22)}
+  .nav button.active svg,.nav button.active i{color:var(--primary)}
+  .nav svg,.nav i{width:18px;height:18px;flex:none;color:var(--faint)}
+  .side-foot{margin-top:auto;font-size:11px;color:var(--faint);line-height:1.5}
+
+  main{min-width:0;display:flex;flex-direction:column}
+  .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-5) var(--sp-6);border-bottom:1px solid var(--border);background:rgba(13,13,13,.82);backdrop-filter:blur(10px)}
+  .topbar h1{margin:0;font-family:var(--display);font-weight:700;font-size:22px}
+  .topbar .crumb{font-size:12px;color:var(--faint);letter-spacing:.4px;text-transform:uppercase}
+  .content{padding:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-5);max-width:1180px;width:100%}
+
+  /* ---------- buttons ---------- */
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:var(--r-md);font-weight:600;font-size:13.5px;background:var(--primary);color:#1a1206;transition:all .12s;text-decoration:none}
+  .btn:hover{background:var(--primary-hover)}
+  .btn svg,.btn i,.file-label svg,.file-label i{width:16px;height:16px}
+  .btn.primary{background:var(--primary);color:#1a1206}
+  .btn.primary:hover{background:var(--primary-hover)}
+  .btn.secondary{background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+  .btn.secondary:hover{background:var(--surface-3)}
+  .btn.ghost{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+  .btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+  .btn.danger,.btn.danger-ghost{background:transparent;color:var(--block);box-shadow:inset 0 0 0 1px rgba(240,88,79,.3)}
+  .btn.danger:hover,.btn.danger-ghost:hover{background:var(--block-soft)}
+  .file-label{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:var(--r-md);font-weight:600;font-size:13.5px;background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--border);cursor:pointer;transition:all .12s}
+  .file-label:hover{background:var(--surface-3)}
+  .icon-btn{width:32px;height:32px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--faint);transition:all .12s;flex:none}
+  .icon-btn:hover{background:var(--surface-2);color:var(--text)}
+  .icon-btn svg,.icon-btn i{width:16px;height:16px}
+  .icon-btn.danger:hover{background:var(--block-soft);color:var(--block)}
+  .toolbar,.row{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+
+  /* ---------- page chrome ---------- */
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap}
+  .page-head .lead{max-width:58ch}
+  .page-head h2{margin:0 0 4px;font-family:var(--display);font-weight:700;font-size:19px}
+  .page-head p{margin:0;font-size:13px;color:var(--faint);line-height:1.5}
+  .head-tools{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-5)}
+  .card.tight{padding:0;overflow:hidden}
+  .section-h{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap}
+  .section-h h3{margin:0;font-family:var(--display);font-weight:600;font-size:15px}
+  .hint{font-size:12.5px;color:var(--faint);line-height:1.5;max-width:70ch}
+
+  /* ---------- segmented ---------- */
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-full);padding:3px;flex-wrap:wrap}
+  .seg button{padding:7px 14px;border-radius:var(--r-full);font-size:13px;font-weight:500;color:var(--muted);transition:all .12s}
+  .seg button.active{background:var(--primary);color:#1a1206;font-weight:600}
+  .seg button:not(.active):hover{color:var(--text)}
+
+  /* ---------- badges ---------- */
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-full);font-size:12px;font-weight:600}
+  .badge .d{width:6px;height:6px;border-radius:50%}
+  .badge.ok{background:var(--good-soft);color:var(--good)} .badge.ok .d{background:var(--good)}
+  .badge.warn{background:var(--warn-soft);color:var(--warn)} .badge.warn .d{background:var(--warn)}
+  .badge.open,.badge.neutral{background:var(--surface-3);color:var(--muted)} .badge.open .d{background:var(--faint)}
+  .badge.block,.badge.err{background:var(--block-soft);color:var(--block)} .badge.block .d{background:var(--block)}
+  .lic-badge{font-size:11px;font-weight:700;letter-spacing:.3px;padding:2px 8px;border-radius:6px;background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+  .lic-badge.bs3{background:var(--primary-soft);color:var(--primary);box-shadow:inset 0 0 0 1px rgba(255,107,0,.3)}
+  .lic-badge.none{color:var(--faint)}
+
+  /* ---------- avatars ---------- */
+  .avatar{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:13px;background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+  .avatar.sm{width:30px;height:30px;font-size:12px}
+
+  /* ---------- tables ---------- */
+  .tbl-wrap{overflow-x:auto}
+  table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:720px}
+  table.tbl th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);padding:13px 16px;border-bottom:1px solid var(--border)}
+  table.tbl td{padding:11px 16px;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+  table.tbl tr:last-child td{border-bottom:none}
+  table.tbl tbody tr{transition:background .1s}
+  table.tbl tbody tr:hover{background:var(--surface-2)}
+  .cell-name{display:flex;align-items:center;gap:11px}
+  .cell-name .nm{font-weight:600;white-space:nowrap}
+  .row-acts{display:flex;gap:4px;justify-content:flex-end}
+  .mono-faint{color:var(--faint);font-variant-numeric:tabular-nums}
+
+  /* ---------- form controls ---------- */
+  .ctrl,input[type=text],input[type=date],input[type=time],input[type=search],input[type=number],select,textarea{display:block;width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;color:var(--text);outline:none;transition:border-color .12s}
+  .ctrl:focus,input:focus,select:focus,textarea:focus{border-color:var(--primary)}
+  input::placeholder{color:var(--faint)}
+  textarea{min-height:84px}
+  select,select.ctrl{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%237d7d7d' stroke-width='2'><path d='M2 4l4 4 4-4'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
+  select.mini{padding:6px 26px 6px 10px;font-size:12.5px;border-radius:var(--r-sm)}
+  .field label,.form-grid label{display:block;font-size:11px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--sp-4)}
+  .searchbar{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;max-width:360px;flex:1}
+  .searchbar:focus-within{border-color:var(--primary)}
+  .searchbar svg,.searchbar i{width:16px;height:16px;color:var(--faint);flex:none}
+  .searchbar input{flex:1;background:none;border:none;color:var(--text);outline:none;padding:0}
+  .date-field{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:4px 6px 4px 12px}
+  .date-field:focus-within{border-color:var(--primary)}
+  .date-field input[type=text]{width:104px;border:none;background:none;padding:6px 0}
+  .date-field input[type=date]{width:34px;border:none;background:none;padding:6px 2px;color:transparent}
+  .date-field input[type=date]::-webkit-datetime-edit{display:none}
+  .date-field input[type=date]::-webkit-calendar-picker-indicator{opacity:.7;cursor:pointer;filter:invert(1)}
+
+  /* ---------- dashboard ---------- */
+  .stat-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:var(--sp-4)}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-5);display:flex;flex-direction:column;gap:6px}
+  .stat .k{font-size:12.5px;color:var(--faint);font-weight:500}
+  .stat .v{font-family:var(--display);font-weight:800;font-size:40px;line-height:1}
+  .stat .sub{font-size:12px;color:var(--faint)}
+  .stat.primary{background:linear-gradient(150deg,rgba(255,107,0,.16),rgba(255,107,0,.04));border-color:rgba(255,107,0,.32);justify-content:space-between}
+  .stat.primary .v{color:var(--primary);font-size:46px}
+  .stat.primary .btn{align-self:flex-start;margin-top:6px}
+  .mini-list{display:flex;flex-direction:column}
+  .mini-row{display:flex;align-items:center;gap:var(--sp-3);padding:12px 0;border-bottom:1px solid var(--border-soft)}
+  .mini-row:last-child{border-bottom:none}
+  .mini-row .tm{font-family:var(--display);font-weight:700;font-size:14px;min-width:48px;color:var(--muted)}
+  .mini-row .mt{flex:1;font-weight:600;font-size:13.5px}
+  .mini-row .mt span{color:var(--faint);font-weight:400;margin:0 6px}
+
+  /* ---------- period bar ---------- */
+  .periodbar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-4)}
+  .periodbar .toprow{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap}
+  .periodbar .daterow{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+  .periodbar .daterow .lab{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--faint)}
+  .progress-wrap{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap}
+  .ring{--p:0;width:54px;height:54px;border-radius:50%;flex:none;background:conic-gradient(var(--primary) calc(var(--p)*1%),var(--surface-3) 0);display:grid;place-items:center}
+  .ring .inner{width:42px;height:42px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:14px}
+  .progress-text .big{font-family:var(--display);font-weight:700;font-size:17px}
+  .progress-text .small{font-size:12.5px;color:var(--faint)}
+  .actions{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+
+  /* ---------- day heading ---------- */
+  .day-head{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-2)}
+  .day-head .dot{width:9px;height:9px;border-radius:50%;background:var(--primary)}
+  .day-head h2{margin:0;font-family:var(--display);font-weight:600;font-size:16px;text-transform:capitalize}
+  .day-head .count{font-size:12px;color:var(--faint)}
+  .day-head .line{flex:1;height:1px;background:var(--border-soft)}
+
+  /* ---------- match card ---------- */
+  .match{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+  .match-head{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--border-soft)}
+  .time-chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;padding:7px 10px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--border)}
+  .time-chip .t{font-family:var(--display);font-weight:700;font-size:17px;line-height:1}
+  .time-chip .d{font-size:10.5px;color:var(--faint);margin-top:3px}
+  .match-teams{min-width:0}
+  .match-teams .vs{font-family:var(--display);font-weight:600;font-size:16px}
+  .match-teams .vs .home{color:var(--text)} .match-teams .vs .sep{color:var(--faint);font-weight:400;margin:0 7px} .match-teams .vs .away{color:var(--muted)}
+  .match-head .grow{flex:1}
+  .status{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:var(--r-full);font-size:12px;font-weight:600}
+  .status .d{width:7px;height:7px;border-radius:50%}
+  .status.ok{background:var(--good-soft);color:var(--good)} .status.ok .d{background:var(--good)}
+  .status.warn{background:var(--warn-soft);color:var(--warn)} .status.warn .d{background:var(--warn)}
+  .status.open{background:var(--surface-3);color:var(--muted)} .status.open .d{background:var(--faint)}
+  .status.block{background:var(--block-soft);color:var(--block)} .status.block .d{background:var(--block)}
+  .head-actions{display:flex;align-items:center;gap:4px}
+
+  /* ---------- role slots ---------- */
+  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:var(--sp-3);padding:var(--sp-4) var(--sp-5) var(--sp-5)}
+  .slot{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+  .slot-label{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .slot-label .role{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--faint)}
+  .lic-tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:var(--r-full);background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border);cursor:pointer}
+  .lic-tag:hover{color:var(--text)}
+  .lic-tag.set{background:var(--primary-soft);color:var(--primary);box-shadow:inset 0 0 0 1px rgba(255,107,0,.3)}
+  .chip{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border-radius:var(--r-sm);padding:7px;transition:background .12s}
+  .chip:hover{background:var(--surface-3)}
+  .chip.filled .avatar{background:#2a2a2a;color:var(--text)}
+  .chip-info{min-width:0;flex:1}
+  .chip-info .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .chip-info .mt{font-size:11.5px;color:var(--faint);display:block}
+  .chip .x{opacity:0;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--faint);flex:none}
+  .chip:hover .x{opacity:1}
+  .chip .x:hover{background:var(--surface);color:var(--block)}
+  .chip .x svg,.chip .x i{width:14px;height:14px}
+  .chip.empty{border:1.5px dashed var(--border);background:transparent;color:var(--faint);justify-content:center;padding:9px;font-weight:600;font-size:13px}
+  .chip.empty:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+  .chip.empty svg,.chip.empty i{width:16px;height:16px}
+  .slot.has-block{box-shadow:inset 0 0 0 1.5px rgba(240,88,79,.55)}
+  .slot.has-warn{box-shadow:inset 0 0 0 1.5px rgba(240,169,59,.4)}
+  .slot-warns{display:flex;flex-wrap:wrap;gap:5px}
+  .wbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:var(--r-full)}
+  .wbadge svg,.wbadge i{width:12px;height:12px}
+  .wbadge.block{background:var(--block-soft);color:var(--block)}
+  .wbadge.warn{background:var(--warn-soft);color:var(--warn)}
+  .slot24{min-height:84px;justify-content:center}
+
+  /* ---------- picker slide-over ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .picker{position:fixed;top:0;right:0;height:100vh;width:430px;max-width:92vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:-24px 0 60px rgba(0,0,0,.5);transform:translateX(100%);transition:transform .24s cubic-bezier(.22,1,.36,1);z-index:50;display:flex;flex-direction:column}
+  .picker.show{transform:translateX(0)}
+  .picker-head{padding:var(--sp-5) var(--sp-5) var(--sp-4);border-bottom:1px solid var(--border-soft);position:relative}
+  .picker-head .ctx{font-size:12px;color:var(--faint);letter-spacing:.3px}
+  .picker-head .ttl{font-family:var(--display);font-weight:700;font-size:19px;margin-top:3px;display:flex;align-items:center;gap:9px}
+  .picker-head .ttl .req{font-size:11px;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:var(--r-full);background:var(--primary-soft);color:var(--primary)}
+  .picker-head .close{position:absolute;top:18px;right:18px;width:32px;height:32px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--faint)}
+  .picker-head .close:hover{background:var(--surface-2);color:var(--text)}
+  .picker .search{margin-top:var(--sp-4);display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px}
+  .picker .search:focus-within{border-color:var(--primary)}
+  .picker .search svg,.picker .search i{width:16px;height:16px;color:var(--faint);flex:none}
+  .picker .search input{flex:1;background:none;border:none;color:var(--text);outline:none;padding:0}
+  .picker-list{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-3) var(--sp-5)}
+  .grp-label{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);padding:var(--sp-3) 10px 7px}
+  .cand{display:flex;align-items:center;gap:11px;padding:10px;border-radius:var(--r-md);width:100%;text-align:left;transition:background .12s}
+  .cand:hover{background:var(--surface-2)}
+  .cand.rec{background:var(--primary-soft);box-shadow:inset 0 0 0 1px rgba(255,107,0,.25)}
+  .cand.rec:hover{background:rgba(255,107,0,.18)}
+  .cand.current{box-shadow:inset 0 0 0 1px var(--primary)}
+  .cand .ci{min-width:0;flex:1}
+  .cand .ci .nm{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+  .cand .ci .rec-tag{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--primary)}
+  .cand .ci .mt{font-size:11.5px;color:var(--faint);margin-top:1px;display:block}
+  .cand .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .tag{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:var(--r-full)}
+  .tag.good{background:var(--good-soft);color:var(--good)}
+  .tag.warn{background:var(--warn-soft);color:var(--warn)}
+  .tag.block{background:var(--block-soft);color:var(--block)}
+  .cand .count{flex:none;text-align:center;font-size:11px;color:var(--faint)}
+  .cand .count b{display:block;font-family:var(--display);font-size:16px;color:var(--muted);font-weight:700}
+  .empty-list{padding:40px 20px;text-align:center;color:var(--faint);font-size:13px}
+  .picker-foot{padding:var(--sp-3) var(--sp-5);border-top:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center}
+  .clear-link{font-size:13px;color:var(--block);font-weight:600;display:flex;align-items:center;gap:6px}
+  .clear-link svg,.clear-link i{width:14px;height:14px}
+  .clear-link:hover{text-decoration:underline}
+
+  /* ---------- history ---------- */
+  .legend{display:flex;align-items:center;gap:var(--sp-4);font-size:12px;color:var(--muted)}
+  .legend .it{display:inline-flex;align-items:center;gap:7px}
+  .legend .sw{width:11px;height:11px;border-radius:3px}
+  .legend .sw.ref{background:var(--primary)} .legend .sw.jury{background:#cfcfcf}
+  .hist{display:flex;flex-direction:column;gap:2px}
+  .hist-row{display:grid;grid-template-columns:28px 1fr 230px 70px;gap:var(--sp-3);align-items:center;padding:9px 8px;border-radius:var(--r-sm)}
+  .hist-row:hover{background:var(--surface-2)}
+  .hist-row .rank{font-family:var(--display);font-weight:700;color:var(--faint);text-align:center}
+  .hist-row .who{display:flex;align-items:center;gap:10px;min-width:0}
+  .hist-row .who .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hist-row .who .tm{font-size:11.5px;color:var(--faint)}
+  .hbar{display:flex;height:16px;border-radius:var(--r-full);overflow:hidden;background:var(--surface-3)}
+  .hseg{height:100%}
+  .hseg.ref{background:var(--primary)} .hseg.jury{background:#cfcfcf}
+  .hist-row .tot{text-align:right;font-family:var(--display);font-weight:700;font-size:16px}
+  .hist-row .tot small{display:block;font-family:var(--body);font-weight:400;font-size:10.5px;color:var(--faint)}
+
+  /* ---------- dialog ---------- */
+  dialog{border:none;padding:0;background:transparent;max-width:min(820px,96vw)}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-6)}
+  .modal h3{margin:0 0 var(--sp-4);font-family:var(--display);font-weight:700;font-size:19px}
+
+  /* ---------- toast ---------- */
+  .toasts,.toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:80;align-items:center}
+  .toast{background:var(--surface-3);border:1px solid var(--border);border-radius:var(--r-full);padding:11px 18px;font-size:13.5px;font-weight:500;box-shadow:0 12px 30px rgba(0,0,0,.45);display:flex;align-items:center;gap:12px;animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+  @media(max-width:880px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:static;height:auto;flex-direction:row;align-items:center;flex-wrap:wrap}
+    .nav{flex-direction:row;flex-wrap:wrap}
+    .side-foot{display:none}
+    .stat-grid{grid-template-columns:1fr}
+  }
+
+  .tbl select.mini,.tbl input.mini{padding:6px 10px;font-size:12.5px;border-radius:var(--r-sm);width:auto;min-width:120px}
+  .tbl input.mini{min-width:130px}
+</style>
 </head>
 <body>
+
 <div class="app">
-  <aside class="sidebar"><div class="brand"><div class="logo"></div><div><h1>Basketbal Indeling</h1><p>Versie 4</p></div></div><nav id="nav" class="nav"></nav></aside>
+  <aside class="sidebar">
+    <div class="brand"><div class="mark"></div><div><div class="name">Basketbal Indeling</div><div class="sub" id="brandSub">Wedstrijdtaken</div></div></div>
+    <nav id="nav" class="nav"></nav>
+    <div class="side-foot">Wedstrijdtaken eerlijk verdeeld<br>over je vereniging</div>
+  </aside>
   <main>
-    <div class="topbar"><div><div class="faint small">Werkende app</div><h2 id="pageTitle">Dashboard</h2></div></div>
+    <div class="topbar"><div><div class="crumb" id="topCrumb"></div><h1 id="pageTitle">Dashboard</h1></div></div>
     <div id="view" class="content"></div>
   </main>
 </div>
+<div id="pickerScrim" class="scrim"></div>
+<aside id="picker" class="picker"></aside>
 <div id="toasts" class="toast-wrap"></div>
 <dialog id="matchDialog"></dialog>
 <dialog id="playerDialog"></dialog>
@@ -101,16 +393,15 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
     .filter(p=>p.status==='available')
     .filter(p=>!usedInMatch.includes(p.id))
     .filter(p=>!hardConflict(p.id,match,tempIndeling))
+    .filter(p=>role.type==='scheidsrechter'?p.role!=='jury':p.role!=='scheidsrechter')
     .map(p=>{
       let score=0;const reasons=[];
       if(p.team===match.homeTeam){score+=100;reasons.push('Eigen team speelt nu')}
       if(role.type==='scheidsrechter'){
-        if(p.role==='jury'){score+=85;reasons.push('Heeft geen scheidsrechtersrol')}
         if(reqLic&&!licenseMeets(p.license,reqLic)){score+=90;reasons.push('Mist licentie '+reqLic)}
         if(p.team!==match.homeTeam){const d=teamSlotDistance(p.team,match);if(d===1){}else if(d===2){score+=30}else{score+=80;reasons.push('Team speelt niet 1-2 wedstrijden voor/na')}}
       }else{
-        if(p.role==='scheidsrechter'){score+=85;reasons.push('Heeft geen juryrol')}
-        else if(p.role==='beide'){score+=15}
+        if(p.role==='beide'){score+=15}
         if(p.team!==match.homeTeam){const d=teamSlotDistance(p.team,match);if(d===1){if(juryTeamsUsed.includes(p.team))score-=10}else{score+=80;reasons.push('Team speelt niet vlak voor/na')}}
       }
       if(sameDayElsewhere(p.id,match,tempIndeling)){score+=40;reasons.push('Al ingedeeld vandaag')}
@@ -184,61 +475,123 @@ function autoAssignRange(){
 }
 function copyText(matches){const lines=['🏀 WEDSTRIJDINDELING',app.data.instellingen.vereniging+' | '+app.data.instellingen.seizoen,''];matches.forEach(m=>{lines.push('📅 '+fmtDate(m.date)+' — '+m.time);lines.push(m.homeTeam+' vs. '+m.awayTeam);rolesFor(m).forEach(r=>{const pid=assignmentFor(m.id)[r.key];lines.push('  '+(r.type==='scheidsrechter'?'🟠':'⬜')+' '+r.label+': '+(pid?playerName(pid):'— (niet ingedeeld)'))});lines.push('')});lines.push('Gegenereerd door Basketbal Indeling App');return lines.join('\n')}
 function renderNav(){nav.innerHTML=tabs.map(([id,label,icon])=>`<button class="${app.tab===id?'active':''}" data-tab="${id}"><i data-lucide="${icon}"></i>${label}</button>`).join('');nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{app.tab=b.dataset.tab;render()})}
-function render(){renderNav();pageTitle.textContent=tabs.find(t=>t[0]===app.tab)[1];view.innerHTML=views[app.tab]();bind();try{if(typeof lucide!=='undefined'&&lucide.createIcons)lucide.createIcons()}catch(e){}}
+function render(){renderNav();pageTitle.textContent=tabs.find(t=>t[0]===app.tab)[1];const _c=document.getElementById('topCrumb');if(_c)_c.textContent=`${app.data.instellingen.vereniging} · ${app.data.instellingen.seizoen}`;const _b=document.getElementById('brandSub');if(_b)_b.textContent=app.data.instellingen.vereniging;view.innerHTML=views[app.tab]();bind();try{if(typeof lucide!=='undefined'&&lucide.createIcons)lucide.createIcons()}catch(e){}}
+/* ===== redesign view layer (new look, original logic) ===== */
+function initials(p){const f=fullName(p);const parts=String(f||'').split(' ').filter(Boolean);if(!parts.length)return '?';const a=parts[0][0]||'';const b=parts.length>1?parts[parts.length-1][0]:'';return (a+b).toUpperCase();}
+function weekdayAbbr(date){const d=new Date(date+'T00:00:00');return isNaN(d)?'':d.toLocaleDateString('nl-NL',{weekday:'short'}).replace('.','');}
+function slotWarns(pid,match,role){const p=player(pid);const w=[];if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(pid&&hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(pid&&sameDayElsewhere(pid,match,null))w.push({sev:'warn',label:'al ingedeeld vandaag'});const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}
+function mBlock(match){return rolesFor(match).some(r=>{const pid=assignmentFor(match.id)[r.key];return pid&&slotWarns(pid,match,r).some(x=>x.sev==='block')});}
+function mStatus(match){const roles=rolesFor(match),asg=assignmentFor(match.id),filled=roles.filter(r=>asg[r.key]).length;if(mBlock(match))return['block','Conflict'];if(filled===0)return['open','Niet ingedeeld'];if(filled===roles.length)return['ok','Volledig'];return['warn',filled+'/'+roles.length+' ingevuld'];}
+
+function slotHtml(m,role){
+  const pid=assignmentFor(m.id)[role.key]||'';const p=player(pid);
+  const warns=pid?slotWarns(pid,m,role):[];
+  const hasBlock=warns.some(w=>w.sev==='block');const hasWarn=!hasBlock&&warns.length>0;
+  const cls='slot'+(hasBlock?' has-block':hasWarn?' has-warn':'');
+  const req=role.type==='scheidsrechter'?refLicReq(m,role.key):'';
+  const licBtn=role.type==='scheidsrechter'?`<button class="lic-tag${req?' set':''}" data-lic-cycle data-lic-match="${m.id}" data-lic-role="${role.key}" title="Klik om vereiste licentie te wijzigen">${req?req+' vereist':'geen eis'}</button>`:'';
+  const body=p?`<button class="chip filled" data-pick-match="${m.id}" data-pick-role="${role.key}"><span class="avatar">${initials(p)}</span><span class="chip-info"><span class="nm">${esc(fullName(p))}</span><span class="mt">${esc(p.team||'')} · ${p.license?esc(p.license):'geen licentie'}</span></span><span class="x" data-clear-slot data-clear-match="${m.id}" data-clear-role="${role.key}" title="Verwijderen"><i data-lucide="x"></i></span></button>`:`<button class="chip empty" data-pick-match="${m.id}" data-pick-role="${role.key}"><i data-lucide="plus"></i> Toewijzen</button>`;
+  const wb=warns.length?`<div class="slot-warns">${warns.map(w=>`<span class="wbadge ${w.sev}"><i data-lucide="${w.sev==='block'?'ban':'alert-triangle'}"></i>${esc(w.label)}</span>`).join('')}</div>`:'';
+  return `<div class="${cls}"><div class="slot-label"><span class="role">${esc(role.label)}</span>${licBtn}</div>${body}${wb}</div>`;
+}
+function matchCardHtml(m){
+  const roles=rolesFor(m);const st=mStatus(m);
+  const slots=roles.map(r=>slotHtml(m,r)).join('');
+  const t24=m.extra24?`<button class="slot chip empty slot24" data-toggle24-match="${m.id}" title="24-seconde operator verwijderen"><i data-lucide="x"></i> 24-sec weghalen</button>`:`<button class="slot chip empty slot24" data-toggle24-match="${m.id}" title="24-seconde operator toevoegen"><i data-lucide="plus"></i> 24-sec operator</button>`;
+  return `<div class="match"><div class="match-head"><div class="time-chip"><span class="t">${esc(m.time)}</span><span class="d">${weekdayAbbr(m.date)}</span></div><div class="match-teams"><div class="vs"><span class="home">${esc(m.homeTeam)}</span><span class="sep">vs</span><span class="away">${esc(m.awayTeam)}</span></div></div><div class="grow"></div><span class="status ${st[0]}"><span class="d"></span>${st[1]}</span><div class="head-actions"><button class="icon-btn" title="Automatisch indelen" data-auto-match="${m.id}"><i data-lucide="wand-2"></i></button><button class="icon-btn" title="PDF" data-pdf-match="${m.id}"><i data-lucide="file-down"></i></button><button class="icon-btn" title="Kopieer" data-copy-match="${m.id}"><i data-lucide="clipboard"></i></button><button class="icon-btn danger" title="Wis wedstrijd" data-clearfull-match="${m.id}"><i data-lucide="eraser"></i></button></div></div><div class="slots">${slots}${t24}</div></div>`;
+}
+
+/* ===== picker slide-over ===== */
+function openPicker(matchId,roleKey){app.picker={matchId,roleKey};renderPicker('');document.getElementById('pickerScrim').classList.add('show');document.getElementById('picker').classList.add('show');setTimeout(()=>{const s=document.getElementById('pickerSearch');if(s)s.focus()},230);}
+function closePicker(){app.picker=null;document.getElementById('pickerScrim').classList.remove('show');document.getElementById('picker').classList.remove('show');}
+function renderPicker(q){
+  if(!app.picker)return;
+  const m=app.data.wedstrijden.find(w=>w.id===app.picker.matchId);if(!m)return;
+  const role=rolesFor(m).find(r=>r.key===app.picker.roleKey);if(!role)return;
+  const asg=assignmentFor(m.id);const current=asg[role.key]||'';
+  const asgWithout={...asg};delete asgWithout[role.key];
+  let cands=rankedCandidates(m,role,asgWithout,null,null);
+  const t=String(q||'').trim().toLowerCase();
+  if(t.length>=3)cands=cands.filter(c=>fullName(c.player).toLowerCase().includes(t)||String(c.player.team||'').toLowerCase().includes(t));
+  cands=cands.slice(0,80);
+  const reqLic=role.type==='scheidsrechter'?refLicReq(m,role.key):'';
+  const rowHtml=c=>{const p=c.player;const rec=c.reasons.length===0;const tags=c.reasons.map(r=>`<span class="tag ${r.indexOf('Mist licentie')===0?'block':'warn'}">${esc(r)}</span>`).join('');const cc=app.data.tellingen[p.id];const tot=cc?(cc.scheidsrechter+cc.jury):0;return `<button class="cand${rec?' rec':''}${p.id===current?' current':''}" data-pick="${p.id}"><span class="avatar">${initials(p)}</span><span class="ci"><span class="nm">${esc(fullName(p))}${rec?'<span class="rec-tag">Aanbevolen</span>':''}</span><span class="mt">${esc(p.team||'')} · ${esc(p.role||'')} · ${p.license?esc(p.license):'geen licentie'}</span>${tags?`<span class="tags">${tags}</span>`:''}</span><span class="count"><b>${tot}</b>dit seizoen</span></button>`;};
+  const picker=document.getElementById('picker');
+  picker.innerHTML=`<div class="picker-head"><div class="ctx">${esc(m.homeTeam)} vs ${esc(m.awayTeam)} · ${esc(m.time)}</div><div class="ttl">${esc(role.label)}${reqLic?`<span class="req">${reqLic} vereist</span>`:''}</div><button class="close" id="pickerClose"><i data-lucide="x"></i></button><div class="search"><i data-lucide="search"></i><input id="pickerSearch" value="${esc(q||'')}" placeholder="Zoek op naam of team (vanaf 3 letters)…" autocomplete="off"></div></div><div class="picker-list">${cands.length?'<div class="grp-label">Beschikbaar · op geschiktheid</div>':''}${cands.map(rowHtml).join('')}${cands.length===0?'<div class="empty-list">Geen personen gevonden.</div>':''}</div><div class="picker-foot">${current?'<button class="clear-link" id="pickerClear"><i data-lucide="eraser"></i> Plek leegmaken</button>':'<span class="small faint">Kies een persoon om toe te wijzen</span>'}<span class="small faint">${cands.length} getoond</span></div>`;
+  try{if(typeof lucide!=='undefined'&&lucide.createIcons)lucide.createIcons()}catch(e){}
+  const cl=document.getElementById('pickerClose');if(cl)cl.onclick=closePicker;
+  const cr=document.getElementById('pickerClear');if(cr)cr.onclick=()=>{assignRole(m.id,role.key,'');closePicker();};
+  const se=document.getElementById('pickerSearch');if(se)se.oninput=()=>{const v=se.value;renderPicker(v);const el=document.getElementById('pickerSearch');if(el){el.focus();el.value=v;el.setSelectionRange(v.length,v.length);}};
+  picker.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{assignRole(m.id,role.key,b.dataset.pick);closePicker();});
+}
+function bindNew(){
+  const ps=document.getElementById('pickerScrim');if(ps)ps.onclick=closePicker;
+  document.querySelectorAll('[data-goto-indeling]').forEach(b=>b.onclick=()=>{app.tab='indeling';render();});
+  document.querySelectorAll('[data-pick-match]').forEach(b=>b.onclick=()=>openPicker(b.dataset.pickMatch,b.dataset.pickRole));
+  document.querySelectorAll('[data-clear-slot]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();assignRole(b.dataset.clearMatch,b.dataset.clearRole,'');});
+  document.querySelectorAll('[data-lic-cycle]').forEach(b=>b.onclick=()=>{const m=app.data.wedstrijden.find(w=>w.id===b.dataset.licMatch);const cur=(m&&m.refLic&&m.refLic[b.dataset.licRole])||'';const next=cur===''?'BS2':cur==='BS2'?'BS3':'';setRefLic(b.dataset.licMatch,b.dataset.licRole,next);});
+}
+
 const views={
- dashboard(){const matches=app.data.wedstrijden.filter(w=>inWeek(w.date,app.weekOffset)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));const full=app.data.wedstrijden.filter(w=>statusFor(w)[1]==='ok').length;const part=app.data.wedstrijden.filter(w=>statusFor(w)[1]==='warn').length;const open=app.data.wedstrijden.filter(w=>statusFor(w)[1]==='neutral').length;const s=weekStart(app.weekOffset),e=new Date(s);e.setDate(e.getDate()+6);const teams=teamList();return `<section class="grid stats"><div class="card"><div class="faint small">Wedstrijden</div><div class="stat-value">${app.data.wedstrijden.length}</div></div><div class="card"><div class="faint small">Volledig</div><div class="stat-value">${full}</div></div><div class="card"><div class="faint small">Gedeeltelijk</div><div class="stat-value">${part}</div></div><div class="card"><div class="faint small">Nog te doen</div><div class="stat-value">${open}</div></div></section><section class="card"><div class="section-title"><h3>Weekplanning</h3><div class="toolbar"><button class="btn ghost" data-week="-1">Vorige</button><span class="badge neutral">${s.toLocaleDateString('nl-NL')} - ${e.toLocaleDateString('nl-NL')}</span><button class="btn ghost" data-week="1">Volgende</button><button class="btn secondary" id="copyWeekBtn">Kopieer week</button></div></div><div class="grid">${matches.length?matches.map(m=>{const stat=statusFor(m),filled=rolesFor(m).filter(r=>assignmentFor(m.id)[r.key]).length,total=rolesFor(m).length,conflict=rolesFor(m).some(r=>{const p=player(assignmentFor(m.id)[r.key]);return p&&p.status!=='available'});return `<div class="match-card"><div class="row"><strong>${esc(fmtDate(m.date))}</strong><span class="badge neutral">${esc(m.time)}</span><span class="badge ${stat[1]}">${esc(stat[0])}</span>${conflict?'<span class="badge warn">Conflict</span>':''}</div><div>${esc(m.homeTeam)} <span class="faint">vs</span> ${esc(m.awayTeam)}</div><div class="small faint">Taken ingevuld: ${filled} / ${total}</div><div class="toolbar"><button class="btn ghost" data-open-match="${m.id}">Open indeling</button></div></div>`}).join(''):'<div class="faint">Geen wedstrijden in deze week.</div>'}</div></section><section class="card"><div class="section-title"><h3>Exporteren</h3></div><div class="toolbar"><select id="pdfTeamSelect" style="max-width:260px"><option value="">Kies team…</option>${teams.map(t=>`<option value="${esc(t)}" ${app.pdfTeam===t?'selected':''}>${esc(t)}</option>`).join('')}</select><button class="btn" id="pdfTeamBtn"><i data-lucide="file-down"></i>PDF per team</button><button class="btn secondary" id="icsBtn"><i data-lucide="calendar"></i>iCal export (.ics)</button></div><p class="small faint">PDF per team bevat alle taken die spelers van het gekozen team vervullen bij andere wedstrijden, als één chronologisch totaaloverzicht per team met een totaaltelling. De iCal-export bevat alle wedstrijden met de toegewezen taken in de omschrijving.</p></section>`},
- wedstrijden(){return `<section class="card"><div class="section-title"><h3>Wedstrijden</h3><div class="toolbar"><label class="file-label"><input id="wedstrijdFile" type="file" accept=".xlsx,.xls,.csv" class="hidden">Excel uploaden</label><button class="btn secondary" id="openMatchForm">Handmatig toevoegen</button><button class="btn danger" id="deleteAllMatchesBtn"><i data-lucide="trash-2"></i>Alle wedstrijden verwijderen</button></div></div><p class="small faint">Kolomkoppeling na upload. Kies daarna welke kolom datum, tijd, thuisteam en tegenstander is.</p></section><section class="card"><div class="table-wrap"><table><thead><tr><th>Datum</th><th>Tijd</th><th>Thuisteam</th><th>Tegenstander</th><th>Status</th><th></th></tr></thead><tbody>${app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time)).map(m=>{const s=statusFor(m);return `<tr><td>${esc(fmtDate(m.date))}</td><td>${esc(m.time)}</td><td>${esc(m.homeTeam)}</td><td>${esc(m.awayTeam)}</td><td><span class="badge ${s[1]}">${esc(s[0])}</span></td><td><div class="toolbar"><button class="btn ghost" data-open-match="${m.id}">Open</button><button class="btn ghost" data-edit-match="${m.id}">Bewerk</button><button class="btn ghost" data-delete-match="${m.id}">Verwijder</button></div></td></tr>`}).join('')||'<tr><td colspan="6" class="faint">Nog geen wedstrijden.</td></tr>'}</tbody></table></div></section>`},
- spelers(){const f=(app.playerFilter||'').toLowerCase();const list=app.data.spelers.filter(p=>!f||[fullName(p),p.team,p.role,p.license].some(v=>String(v||'').toLowerCase().includes(f)));return `<section class="card"><div class="section-title"><h3>Spelers</h3><div class="toolbar"><label class="file-label"><input id="spelersFile" type="file" accept=".xlsx,.xls,.csv" class="hidden">Spelers uploaden</label><label class="file-label secondary" style="background:var(--color-surface-2);border:1px solid var(--color-border)"><input id="licentieFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="award"></i>Licenties uploaden</label><button class="btn secondary" id="openPlayerForm">Speler toevoegen</button><button class="btn danger" id="deleteAllPlayersBtn"><i data-lucide="trash-2"></i>Alle spelers verwijderen</button></div></div><div class="toolbar"><input type="search" id="playerSearch" placeholder="Zoek op naam, team of licentie…" value="${esc(app.playerFilter)}" style="max-width:340px"><span class="small faint">${list.length} van ${app.data.spelers.length} spelers</span></div><p class="small faint">Licenties uploaden: kies een Excel met een naam- en licentiekolom. De licenties (BS2/BS3) worden automatisch gekoppeld aan bestaande spelers op basis van de naam.</p></section><section class="card"><div class="table-wrap"><table><thead><tr><th>Naam</th><th>Team</th><th>Rol</th><th>Licentie</th><th>Status</th><th>Reden</th><th>Acties</th></tr></thead><tbody>${list.map(p=>`<tr><td>${esc(fullName(p))}</td><td>${esc(p.team||'')}</td><td>${esc(p.role||'')}</td><td>${esc(p.license||'—')}</td><td><select data-player-status="${p.id}"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select></td><td><input type="text" data-player-reason="${p.id}" value="${esc(p.reason||'')}" placeholder="reden"></td><td><div class="toolbar"><button class="btn ghost" data-edit-player="${p.id}">Bewerk</button><button class="btn ghost" data-delete-player="${p.id}">Verwijder</button></div></td></tr>`).join('')||'<tr><td colspan="7" class="faint">Geen spelers gevonden.</td></tr>'}</tbody></table></div></section>`},
+ dashboard(){
+  const weekMatches=app.data.wedstrijden.filter(w=>inWeek(w.date,app.weekOffset)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  let totalRoles=0,filled=0,conflicts=0;
+  weekMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
+  const open=totalRoles-filled;
+  const full=weekMatches.filter(m=>mStatus(m)[0]==='ok').length;
+  const avail=app.data.spelers.filter(p=>p.status==='available').length;
+  const s=weekStart(app.weekOffset),e=new Date(s);e.setDate(e.getDate()+6);
+  return `<div class="page-head"><div class="lead"><h2>Overzicht — deze week</h2><p>${s.toLocaleDateString('nl-NL')} t/m ${e.toLocaleDateString('nl-NL')} · ${weekMatches.length} wedstrijd(en). Zie in één oogopslag wat er nog moet gebeuren.</p></div><div class="head-tools"><button class="btn ghost" data-week="-1"><i data-lucide="chevron-left"></i> Vorige</button><button class="btn ghost" data-week="1">Volgende <i data-lucide="chevron-right"></i></button><button class="btn secondary" id="copyWeekBtn"><i data-lucide="clipboard"></i> Kopieer week</button></div></div>
+  <div class="stat-grid"><div class="stat primary"><div><div class="k">Nog in te delen</div><div class="v">${open}</div><div class="sub">taken zonder persoon${conflicts>0?` · ${conflicts} conflict${conflicts>1?'en':''}`:''}</div></div><button class="btn primary" data-goto-indeling><i data-lucide="wand-2"></i> Naar indeling</button></div><div class="stat"><div class="k">Volledig ingedeeld</div><div class="v">${full}</div><div class="sub">van ${weekMatches.length} wedstrijden</div></div><div class="stat"><div class="k">Spelers beschikbaar</div><div class="v">${avail}</div><div class="sub">van ${app.data.spelers.length} in de pool</div></div></div>
+  <div class="card"><div class="section-h"><h3>Weekplanning</h3><span class="badge neutral">${filled}/${totalRoles} taken</span></div><div class="mini-list">${weekMatches.length?weekMatches.map(m=>{const st=mStatus(m);return `<div class="mini-row"><span class="tm">${esc(m.time)}</span><span class="mt">${esc(m.homeTeam)}<span>vs</span>${esc(m.awayTeam)}</span><span class="badge ${st[0]}"><span class="d"></span>${st[1]}</span></div>`;}).join(''):'<div class="empty-list">Geen wedstrijden in deze week.</div>'}</div></div>`;
+ },
+ wedstrijden(){
+  const list=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  return `<div class="page-head"><div class="lead"><h2>Wedstrijden</h2><p>Upload een Excel of voeg handmatig toe. Na upload koppel je de kolommen voor datum, tijd, thuisteam en tegenstander.</p></div><div class="head-tools"><label class="file-label"><input id="wedstrijdFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="upload"></i> Excel uploaden</label><button class="btn primary" id="openMatchForm"><i data-lucide="plus"></i> Wedstrijd toevoegen</button><button class="btn danger" id="deleteAllMatchesBtn"><i data-lucide="trash-2"></i> Alle verwijderen</button></div></div>
+  <div class="card tight"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Tijd</th><th>Thuisteam</th><th>Tegenstander</th><th>Status</th><th></th></tr></thead><tbody>${list.map(m=>{const st=mStatus(m);return `<tr><td>${esc(fmtDate(m.date))}</td><td class="mono-faint">${esc(m.time)}</td><td style="font-weight:600">${esc(m.homeTeam)}</td><td>${esc(m.awayTeam)}</td><td><span class="badge ${st[0]}"><span class="d"></span>${st[1]}</span></td><td><div class="row-acts"><button class="btn ghost" data-open-match="${m.id}">Open</button><button class="icon-btn" title="Bewerken" data-edit-match="${m.id}"><i data-lucide="pencil"></i></button><button class="icon-btn danger" title="Verwijderen" data-delete-match="${m.id}"><i data-lucide="trash-2"></i></button></div></td></tr>`;}).join('')||'<tr><td colspan="6" class="faint" style="padding:24px 16px">Nog geen wedstrijden.</td></tr>'}</tbody></table></div></div>`;
+ },
+ spelers(){
+  const f=(app.playerFilter||'').toLowerCase();
+  const list=app.data.spelers.filter(p=>!f||[fullName(p),p.team,p.role,p.license].some(v=>String(v||'').toLowerCase().includes(f)));
+  return `<div class="page-head"><div class="lead"><h2>Spelers</h2><p>De pool van scheidsrechters en juryleden. Licenties (BS2/BS3) koppelen automatisch op naam na een Excel-upload.</p></div><div class="head-tools"><label class="file-label"><input id="spelersFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="upload"></i> Spelers uploaden</label><label class="file-label"><input id="licentieFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="award"></i> Licenties uploaden</label><button class="btn primary" id="openPlayerForm"><i data-lucide="plus"></i> Speler toevoegen</button><button class="btn danger" id="deleteAllPlayersBtn"><i data-lucide="trash-2"></i> Alle verwijderen</button></div></div>
+  <div class="page-head"><div class="searchbar"><i data-lucide="search"></i><input type="search" id="playerSearch" placeholder="Zoek op naam, team of licentie…" value="${esc(app.playerFilter||'')}"></div><span class="small faint" style="align-self:center">${list.length} van ${app.data.spelers.length} spelers</span></div>
+  <div class="card tight"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Naam</th><th>Team</th><th>Rol</th><th>Licentie</th><th style="width:180px">Beschikbaarheid</th><th>Reden</th><th></th></tr></thead><tbody>${list.map(p=>{const lic=p.license?`<span class="lic-badge${p.license==='BS3'?' bs3':''}">${esc(p.license)}</span>`:'<span class="lic-badge none">geen</span>';return `<tr><td><div class="cell-name"><span class="avatar sm">${initials(p)}</span><span class="nm">${esc(fullName(p))}</span></div></td><td class="mono-faint">${esc(p.team||'')}</td><td style="text-transform:capitalize">${esc(p.role||'')}</td><td>${lic}</td><td><select class="mini" data-player-status="${p.id}"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select></td><td><input type="text" class="mini" data-player-reason="${p.id}" value="${esc(p.reason||'')}" placeholder="—"></td><td><div class="row-acts"><button class="icon-btn" title="Bewerken" data-edit-player="${p.id}"><i data-lucide="pencil"></i></button><button class="icon-btn danger" title="Verwijderen" data-delete-player="${p.id}"><i data-lucide="trash-2"></i></button></div></td></tr>`;}).join('')||'<tr><td colspan="7" class="faint" style="padding:24px 16px">Nog geen spelers.</td></tr>'}</tbody></table></div></div>`;
+ },
  indeling(){
   const {from,to}=rangeBounds();
   const rangeMatches=matchesInRange();
-  const navSec=`<section class="card"><div class="section-title"><h3>Indeling — periode</h3></div><div class="toolbar"><label class="small faint">Van</label><div class="date-field"><input type="text" id="rangeFromText" value="${nlDate(from)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeFrom" value="${from}" title="Kies uit kalender" aria-label="Van uit kalender"></div><label class="small faint">Tot</label><div class="date-field"><input type="text" id="rangeToText" value="${nlDate(to)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeTo" value="${to}" title="Kies uit kalender" aria-label="Tot uit kalender"></div></div><div class="toolbar"><button class="sort-btn" data-preset="week">Deze week</button><button class="sort-btn" data-preset="2w">Komende 2 weken</button><button class="sort-btn" data-preset="4w">Komende 4 weken</button><button class="sort-btn" data-preset="all">Hele seizoen</button></div><div class="toolbar"><button class="btn secondary" id="bulkRangeBtn"><i data-lucide="zap"></i>Hele periode indelen</button><button class="btn secondary" id="copyRangeBtn"><i data-lucide="clipboard"></i>Kopieer periode</button></div><div class="toolbar"><button class="btn danger" id="clearRangeBtn"><i data-lucide="eraser"></i>Wis periode</button><button class="btn danger" id="clearAllBtn"><i data-lucide="trash-2"></i>Wis hele indeling</button></div><p class="small faint">Typ een datum (dd-mm-jjjj) of kies via de kalenderknop. Per week zie je een tabel met één rij per wedstrijd; de taken staan naast elkaar in kolommen. Kies per taak een persoon — "—" maakt de plek leeg. "Hele periode indelen" vult alles automatisch en verdeelt eerlijk.</p></section>`;
-  if(!app.data.wedstrijden.length)return navSec+`<section class="card"><p class="faint">Voeg eerst wedstrijden toe.</p></section>`;
-  if(!rangeMatches.length)return navSec+`<section class="card"><p class="faint">Geen wedstrijden in deze periode. Pas de datums aan of kies een snelknop.</p></section>`;
-  const cell=(match,role)=>{
-    const asg=assignmentFor(match.id);
-    const current=asg[role.key]||'';
-    const asgWithout={...asg};delete asgWithout[role.key];
-    const candidates=rankedCandidates(match,role,asgWithout,null,null).slice(0,60);
-    const p=player(current);
-    const inList=candidates.some(c=>c.player.id===current);
-    const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';
-    const warns=[];
-    if(p&&p.status!=='available')warns.push('niet beschikbaar');
-    if(current&&hardConflict(current,match,null))warns.push('zelfde tijdstip elders');
-    else if(current&&sameDayElsewhere(current,match,null))warns.push('al ingedeeld vandaag');
-    if(reqLic&&p&&!licenseMeets(p.license,reqLic))warns.push('mist '+reqLic);
-    const mark=warns.length?`<span class="warnmark" title="${esc(warns.join(', '))}">⚠</span>`:'';
-    const extraOpt=(current&&p&&!inList)?`<option value="${current}" selected>${esc(fullName(p))} (huidige)</option>`:'';
-    const sel=`<select class="cell-assign" data-assign-match="${match.id}" data-assign-role="${role.key}"><option value="" ${current?'':'selected'}>—</option>${extraOpt}${candidates.map(c=>`<option value="${c.player.id}" ${c.player.id===current?'selected':''}>${esc(fullName(c.player))}${c.reasons.length?' ('+esc(c.reasons.join(', '))+')':''}</option>`).join('')}</select>`;
-    const lic=role.type==='scheidsrechter'?`<select class="cell-lic" data-lic-match="${match.id}" data-lic-role="${role.key}"><option value="" ${!reqLic?'selected':''}>licentie: geen</option><option value="BS2" ${reqLic==='BS2'?'selected':''}>BS2 vereist</option><option value="BS3" ${reqLic==='BS3'?'selected':''}>BS3 vereist</option></select>`:'';
-    return `<div class="cell-stack"><div class="cell-assign-wrap">${sel}${mark}</div><div class="cell-search-wrap"><input class="cell-search" data-sm="${match.id}" data-sr="${role.key}" placeholder="zoek 3+ letters" autocomplete="off"><div class="suggest"></div></div>${lic}</div>`;
-  };
-  const groups={};
-  rangeMatches.forEach(m=>{const k=mondayOf(m.date);(groups[k]=groups[k]||[]).push(m)});
-  let html=navSec;
-  Object.keys(groups).sort().forEach(k=>{
-    const mon=new Date(k+'T00:00:00'),end=new Date(mon);end.setDate(end.getDate()+6);
-    const rows=groups[k].map(m=>{
-      const stat=statusFor(m);
-      const j3=m.extra24?cell(m,{key:'jury3',label:'24-seconde operator',type:'jury'})+`<button class="mini-btn danger" data-toggle24-match="${m.id}" title="24-seconde operator verwijderen">×</button>`:`<button class="mini-btn" data-toggle24-match="${m.id}" title="24-seconde operator toevoegen">+ 24s</button>`;
-      return `<tr><td class="nowrap">${esc(fmtDate(m.date))}</td><td class="nowrap">${esc(m.time)}</td><td>${esc(m.homeTeam)} <span class="faint">vs</span> ${esc(m.awayTeam)}<br><span class="badge ${stat[1]}">${esc(stat[0])}</span></td><td>${cell(m,{key:'scheidsrechter1',label:'Scheidsrechter 1',type:'scheidsrechter'})}</td><td>${cell(m,{key:'scheidsrechter2',label:'Scheidsrechter 2',type:'scheidsrechter'})}</td><td>${cell(m,{key:'jury1',label:'Timer',type:'jury'})}</td><td>${cell(m,{key:'jury2',label:'Scorer',type:'jury'})}</td><td>${j3}</td><td class="nowrap"><button class="mini-btn" data-auto-match="${m.id}" title="Deze wedstrijd automatisch indelen"><i data-lucide="wand-2"></i></button><button class="mini-btn" data-pdf-match="${m.id}" title="PDF"><i data-lucide="file-down"></i></button><button class="mini-btn" data-copy-match="${m.id}" title="Kopieer"><i data-lucide="clipboard"></i></button><button class="mini-btn danger" data-clearfull-match="${m.id}" title="Wis wedstrijd"><i data-lucide="eraser"></i></button></td></tr>`;
-    }).join('');
-    html+=`<section class="card"><div class="section-title"><h3>Week van ${mon.toLocaleDateString('nl-NL')} t/m ${end.toLocaleDateString('nl-NL')}</h3><span class="badge neutral">${groups[k].length} wedstrijd(en)</span></div><div class="table-wrap"><table class="indeling-table"><thead><tr><th>Datum</th><th>Tijd</th><th>Wedstrijd</th><th>Scheids 1</th><th>Scheids 2</th><th>Timer</th><th>Scorer</th><th>24-sec</th><th>Acties</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
-  });
+  let totalRoles=0,filled=0,conflicts=0;
+  rangeMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
+  const pct=totalRoles?Math.round(filled/totalRoles*100):0;
+  const presets=[['week','Deze week'],['2w','Komende 2 weken'],['4w','Komende 4 weken'],['all','Hele seizoen']];
+  const periodbar=`<div class="periodbar"><div class="toprow"><div style="display:flex;flex-direction:column;gap:12px"><div class="seg">${presets.map(([k,l])=>`<button data-preset="${k}">${l}</button>`).join('')}</div><div class="daterow"><span class="lab">Van</span><div class="date-field"><input type="text" id="rangeFromText" value="${nlDate(from)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeFrom" value="${from}" aria-label="Van"></div><span class="lab">Tot</span><div class="date-field"><input type="text" id="rangeToText" value="${nlDate(to)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeTo" value="${to}" aria-label="Tot"></div></div></div><div class="actions"><button class="btn primary" id="bulkRangeBtn"><i data-lucide="wand-2"></i> Hele periode indelen</button><button class="btn secondary" id="copyRangeBtn"><i data-lucide="clipboard"></i> Kopieer</button><button class="btn danger" id="clearRangeBtn"><i data-lucide="eraser"></i> Wis periode</button></div></div><div class="progress-wrap"><div class="ring" style="--p:${pct}"><div class="inner">${pct}%</div></div><div class="progress-text"><div class="big">${filled} van ${totalRoles} taken ingevuld</div><div class="small">${rangeMatches.length} wedstrijd(en) in deze periode${conflicts>0?` · <b style="color:var(--block)">${conflicts} conflict${conflicts>1?'en':''}</b>`:(rangeMatches.length?' · <b style="color:var(--good)">geen conflicten</b>':'')}</div></div><div style="flex:1"></div><button class="btn danger" id="clearAllBtn" title="Wis hele seizoensindeling"><i data-lucide="trash-2"></i> Wis alles</button></div><div class="hint">Klik op een rol om een persoon te kiezen. In het zijpaneel staan kandidaten gesorteerd op geschiktheid; conflicten en ontbrekende licenties zie je meteen. "Hele periode indelen" vult lege plekken eerlijk in.</div></div>`;
+  if(!app.data.wedstrijden.length)return periodbar+`<div class="card"><p class="faint">Voeg eerst wedstrijden toe.</p></div>`;
+  if(!rangeMatches.length)return periodbar+`<div class="card"><p class="faint">Geen wedstrijden in deze periode. Pas de datums aan of kies een snelknop.</p></div>`;
+  const groups={};rangeMatches.forEach(m=>(groups[m.date]=groups[m.date]||[]).push(m));
+  let html=periodbar;
+  Object.keys(groups).sort().forEach(date=>{const list=groups[date].sort((a,b)=>a.time.localeCompare(b.time));html+=`<div class="day-head"><span class="dot"></span><h2>${esc(dayLabel(date))}</h2><span class="count">${list.length} wedstrijd(en)</span><span class="line"></span></div>`;list.forEach(m=>{html+=matchCardHtml(m);});});
   return html;
  },
  geschiedenis(){
   const sort=app.historySort||'total';
-  const rows=app.data.spelers.map(p=>{const c=app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};return{p,c,total:c.scheidsrechter+c.jury}});
-  const sorters={total:(a,b)=>b.total-a.total||fullName(a.p).localeCompare(fullName(b.p)),scheids:(a,b)=>b.c.scheidsrechter-a.c.scheidsrechter||fullName(a.p).localeCompare(fullName(b.p)),jury:(a,b)=>b.c.jury-a.c.jury||fullName(a.p).localeCompare(fullName(b.p))};
-  rows.sort(sorters[sort]||sorters.total);
-  const sortBtns=[['total','Totaal'],['scheids','Scheidsrechter'],['jury','Jury']].map(([k,l])=>`<button class="sort-btn ${sort===k?'active':''}" data-hist-sort="${k}">${l}</button>`).join('');
-  return `<section class="card"><div class="section-title"><h3>Seizoensgeschiedenis</h3><div class="toolbar"><button class="btn secondary" id="exportHistoryBtn">Excel export</button><button class="btn ghost" id="archiveBtn">Nieuw seizoen starten</button></div></div><div class="toolbar" style="margin-bottom:var(--space-3)"><span class="small faint">Sorteer op:</span>${sortBtns}</div><div class="table-wrap"><table><thead><tr><th>Speler</th><th>Team</th><th>Scheidsrechter</th><th>Jury</th><th>Totaal</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.p.name)}</td><td>${esc(r.p.team||'')}</td><td>${r.c.scheidsrechter}</td><td>${r.c.jury}</td><td>${r.total}</td></tr>`).join('')||'<tr><td colspan="5" class="faint">Nog geen data.</td></tr>'}</tbody></table></div></section>`;
+  const rows=app.data.spelers.map(p=>{const c=app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};return{p,ref:c.scheidsrechter,jury:c.jury,total:c.scheidsrechter+c.jury};});
+  const sorters={total:(a,b)=>b.total-a.total,scheids:(a,b)=>b.ref-a.ref,jury:(a,b)=>b.jury-a.jury};
+  rows.sort((a,b)=>(sorters[sort]||sorters.total)(a,b)||fullName(a.p).localeCompare(fullName(b.p)));
+  const max=Math.max(1,...rows.map(r=>r.total));
+  const SORTS=[['total','Totaal'],['scheids','Scheidsrechter'],['jury','Jury']];
+  return `<div class="page-head"><div class="lead"><h2>Seizoensgeschiedenis</h2><p>Hoe vaak ieder lid is ingezet dit seizoen — als scheidsrechter en als jurylid. Gebruik dit om de verdeling eerlijk te houden.</p></div><div class="head-tools"><button class="btn secondary" id="exportHistoryBtn"><i data-lucide="file-down"></i> Excel export</button><button class="btn ghost" id="archiveBtn">Nieuw seizoen starten</button></div></div>
+  <div class="card"><div class="section-h"><div class="seg">${SORTS.map(([k,l])=>`<button class="${sort===k?'active':''}" data-hist-sort="${k}">${l}</button>`).join('')}</div><div class="legend"><span class="it"><span class="sw ref"></span>Scheidsrechter</span><span class="it"><span class="sw jury"></span>Jury</span></div></div><div class="hist">${rows.map((r,i)=>`<div class="hist-row"><span class="rank">${i+1}</span><span class="who"><span class="avatar sm">${initials(r.p)}</span><span style="min-width:0"><span class="nm" style="display:block">${esc(fullName(r.p))}</span><span class="tm">${esc(r.p.team||'')}</span></span></span><span class="hbar">${r.ref>0?`<span class="hseg ref" style="width:${r.ref/max*100}%"></span>`:''}${r.jury>0?`<span class="hseg jury" style="width:${r.jury/max*100}%"></span>`:''}</span><span class="tot">${r.total}<small>${r.ref} scheids · ${r.jury} jury</small></span></div>`).join('')||'<div class="empty-list">Nog geen data.</div>'}</div></div>`;
  },
- instellingen(){return `<section class="card"><div class="section-title"><h3>Algemeen</h3></div><div class="form-grid"><div><label class="small faint">Vereniging</label><input id="verenigingInput" type="text" value="${esc(app.data.instellingen.vereniging||'')}"></div><div><label class="small faint">Seizoen</label><input id="seizoenInput" type="text" value="${esc(app.data.instellingen.seizoen||'')}"></div></div></section><section class="card"><div class="section-title"><h3>Indelingsregels</h3></div><p class="small faint">Elke wedstrijd heeft standaard twee scheidsrechters, een timer en een scorer. In het indeelscherm kun je per wedstrijd een 24-seconde operator toevoegen en per scheidsrechtersfunctie de vereiste licentie instellen (geen, BS2 of BS3). Standaard is er geen licentie vereist.</p></section>`}
+ instellingen(){
+  const teams=teamList();
+  return `<div class="page-head"><div class="lead"><h2>Instellingen</h2><p>Algemene gegevens, exports en de standaardregels voor het indelen.</p></div></div>
+  <div class="card"><div class="section-h"><h3>Algemeen</h3></div><div class="form-grid"><div class="field"><label>Vereniging</label><input id="verenigingInput" type="text" value="${esc(app.data.instellingen.vereniging||'')}"></div><div class="field"><label>Seizoen</label><input id="seizoenInput" type="text" value="${esc(app.data.instellingen.seizoen||'')}"></div></div></div>
+  <div class="card"><div class="section-h"><h3>Exporteren</h3></div><div class="form-grid"><div class="field"><label>PDF met taken per team</label><div class="toolbar"><select id="pdfTeamSelect" style="max-width:200px"><option value="">— kies team —</option>${teams.map(t=>`<option value="${esc(t)}" ${app.pdfTeam===t?'selected':''}>${esc(t)}</option>`).join('')}</select><button class="btn secondary" id="pdfTeamBtn"><i data-lucide="file-down"></i> Team-PDF</button></div></div><div class="field"><label>Agenda (alle wedstrijden)</label><div><button class="btn secondary" id="icsBtn"><i data-lucide="calendar-days"></i> iCal exporteren</button></div></div></div></div>
+  <div class="card"><div class="section-h"><h3>Indelingsregels</h3></div><p class="hint">Elke wedstrijd heeft standaard twee scheidsrechters, een timer en een scorer. In het indeelscherm voeg je per wedstrijd een 24-seconde operator toe en stel je per scheidsrechtersfunctie de vereiste licentie in (geen, BS2 of BS3). De automatische indeling verdeelt taken eerlijk op basis van het aantal beurten dit seizoen.</p></div>`;
+ }
 };
 function bind(){
+ bindNew();
  document.querySelectorAll('[data-week]').forEach(b=>b.onclick=()=>{app.weekOffset+=Number(b.dataset.week);render()});
  document.querySelectorAll('[data-open-match]').forEach(b=>b.onclick=()=>{app.selectedMatchId=b.dataset.openMatch;app.tab='indeling';const m=app.data.wedstrijden.find(w=>w.id===b.dataset.openMatch);if(m){const d=new Date(m.date+'T00:00:00');const s=new Date(d);s.setDate(s.getDate()-((d.getDay()+6)%7));const e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}render()});
  const wf=document.getElementById('wedstrijdFile');if(wf)wf.onchange=e=>importSheet(e.target.files[0],'wedstrijden');
@@ -293,9 +646,9 @@ function deleteMatch(id){const m=app.data.wedstrijden.find(x=>x.id===id);if(!m)r
 function deleteAllMatches(){if(!app.data.wedstrijden.length)return toast('Er zijn geen wedstrijden');if(!confirm(`Alle ${app.data.wedstrijden.length} wedstrijden verwijderen? Ook de bijbehorende indelingen worden gewist. Spelers blijven staan.`))return;app.data.wedstrijden=[];app.data.indeling={};app.selectedMatchId=null;updateCounts();saveAll();render();toast('Alle wedstrijden verwijderd')}
 function deleteAllPlayers(){if(!app.data.spelers.length)return toast('Er zijn geen spelers');if(!confirm(`Alle ${app.data.spelers.length} spelers verwijderen? Bestaande indelingen worden hierbij gewist. Wedstrijden blijven staan.`))return;app.data.spelers=[];app.data.indeling={};updateCounts();saveAll();render();toast('Alle spelers verwijderd')}
 function openPlayerDialog(id){const p=app.data.spelers.find(x=>x.id===id)||{id:null,voornaam:'',tussenvoegsel:'',achternaam:'',team:'',role:'beide',license:'',status:'available',reason:''};playerDialog.innerHTML=`<form method="dialog" class="modal"><h3>${id?'Speler bewerken':'Speler toevoegen'}</h3><div class="form-grid"><div><label class="small faint">Voornaam</label><input id="pdVoornaam" type="text" value="${esc(p.voornaam||'')}"></div><div><label class="small faint">Tussenvoegsel</label><input id="pdTussen" type="text" value="${esc(p.tussenvoegsel||'')}" placeholder="bv. van der"></div><div><label class="small faint">Achternaam</label><input id="pdAchternaam" type="text" value="${esc(p.achternaam||'')}"></div><div><label class="small faint">Team</label><input id="pdTeam" type="text" value="${esc(p.team)}"></div><div><label class="small faint">Rol</label><select id="pdRole"><option ${p.role==='scheidsrechter'?'selected':''}>scheidsrechter</option><option ${p.role==='jury'?'selected':''}>jury</option><option ${p.role==='beide'?'selected':''}>beide</option></select></div><div><label class="small faint">Licentie</label><select id="pdLicense"><option value="" ${!p.license?'selected':''}>Geen</option><option value="BS2" ${p.license==='BS2'?'selected':''}>BS2</option><option value="BS3" ${p.license==='BS3'?'selected':''}>BS3</option></select></div><div><label class="small faint">Status</label><select id="pdStatus"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select></div><div style="grid-column:1/-1"><label class="small faint">Reden</label><input id="pdReason" type="text" value="${esc(p.reason)}"></div></div><div class="toolbar" style="margin-top:1rem"><button class="btn" id="savePlayerDialogBtn" type="button">Opslaan</button><button class="btn ghost" type="submit">Sluiten</button></div></form>`;playerDialog.showModal();document.getElementById('savePlayerDialogBtn').onclick=()=>{const obj={id:p.id||uid(),voornaam:pdVoornaam.value.trim(),tussenvoegsel:pdTussen.value.trim(),achternaam:pdAchternaam.value.trim(),team:pdTeam.value.trim(),role:pdRole.value,license:pdLicense.value,status:pdStatus.value,reason:pdReason.value.trim()};if(!obj.voornaam&&!obj.achternaam)return alert('Vul minimaal een voornaam of achternaam in');obj.name=fullName(obj);if(p.id){const idx=app.data.spelers.findIndex(x=>x.id===p.id);app.data.spelers[idx]=obj}else app.data.spelers.push(obj);saveAll();playerDialog.close();render();toast('Speler opgeslagen')}}
-function deletePlayer(id){const p=player(id);if(!p)return;if(!confirm(`${p.name} verwijderen? Bestaande indelingen met deze speler worden gewist.`))return;Object.keys(app.data.indeling).forEach(mid=>{const asg=app.data.indeling[mid];Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]})});app.data.spelers=app.data.spelers.filter(x=>x.id!==id);updateCounts();saveAll();render();toast('Speler verwijderd')}
+function deletePlayer(id){const p=player(id);if(!p)return;if(!confirm(`${fullName(p)} verwijderen? Bestaande indelingen met deze speler worden gewist.`))return;Object.keys(app.data.indeling).forEach(mid=>{const asg=app.data.indeling[mid];Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]})});app.data.spelers=app.data.spelers.filter(x=>x.id!==id);updateCounts();saveAll();render();toast('Speler verwijderd')}
 function splitCSV(v){return String(v||'').split(',').map(x=>x.trim()).filter(Boolean)}
-function changePlayerStatus(id,status){const p=player(id);if(!p)return;const today=new Date();today.setHours(0,0,0,0);const futureConflicts=[];if(status!=='available'){app.data.wedstrijden.forEach(w=>{const d=new Date(w.date+'T00:00:00');if(d<today)return;const assigned=Object.values(assignmentFor(w.id)).includes(id);if(assigned)futureConflicts.push(w)})}if(futureConflicts.length){const remove=confirm(`${p.name} staat nog ingepland voor ${futureConflicts.length} toekomstige wedstrijd(en). OK = toekomstige indelingen verwijderen, Annuleren = alleen conflictwaarschuwing tonen.`);if(remove){futureConflicts.forEach(w=>{const asg=assignmentFor(w.id);Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]});app.data.indeling[w.id]=asg})}}p.status=status;updateCounts();saveAll();render();toast('Beschikbaarheidsstatus aangepast')}
+function changePlayerStatus(id,status){const p=player(id);if(!p)return;const today=new Date();today.setHours(0,0,0,0);const futureConflicts=[];if(status!=='available'){app.data.wedstrijden.forEach(w=>{const d=new Date(w.date+'T00:00:00');if(d<today)return;const assigned=Object.values(assignmentFor(w.id)).includes(id);if(assigned)futureConflicts.push(w)})}if(futureConflicts.length){const remove=confirm(`${fullName(p)} staat nog ingepland voor ${futureConflicts.length} toekomstige wedstrijd(en). OK = toekomstige indelingen verwijderen, Annuleren = alleen conflictwaarschuwing tonen.`);if(remove){futureConflicts.forEach(w=>{const asg=assignmentFor(w.id);Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]});app.data.indeling[w.id]=asg})}}p.status=status;updateCounts();saveAll();render();toast('Beschikbaarheidsstatus aangepast')}
 function assignRole(matchId,roleKey,playerId){const asg={...assignmentFor(matchId)};if(playerId)asg[roleKey]=playerId;else delete asg[roleKey];app.data.indeling[matchId]=asg;updateCounts();saveAll();render()}
 function toggle24(matchId){const m=app.data.wedstrijden.find(w=>w.id===matchId);if(!m)return;m.extra24=!m.extra24;if(!m.extra24){const asg=app.data.indeling[matchId];if(asg)delete asg.jury3}updateCounts();saveAll();render();toast(m.extra24?'24-seconde operator toegevoegd':'24-seconde operator verwijderd')}
 function setRefLic(matchId,roleKey,val){const m=app.data.wedstrijden.find(w=>w.id===matchId);if(!m)return;m.refLic=m.refLic||{};if(val)m.refLic[roleKey]=val;else delete m.refLic[roleKey];saveAll();render();toast(val?('Licentie-eis '+val+' ingesteld'):'Licentie-eis verwijderd')}
@@ -316,5 +669,6 @@ function exportHistory(){const rows=app.data.spelers.map(p=>{const c=app.data.te
 function archiveSeason(){const s=app.data.instellingen.seizoen||'Onbekend seizoen';if(!confirm(`Huidige tellingen archiveren als ${s}?`))return;app.data.archief[s]=JSON.parse(JSON.stringify(app.data.tellingen));app.data.tellingen={};saveAll();render();toast('Nieuw seizoen gestart')}
 updateCounts();render();
 </script>
-</body>
-</html>
+
+
+</body></html>
