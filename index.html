@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
   :root{
     --bg:#0d0d0d; --surface:#161616; --surface-2:#1c1c1c; --surface-3:#242424;
@@ -351,7 +352,36 @@ const app={tab:'dashboard',weekOffset:0,selectedMatchId:null,pendingImport:null,
 function uid(){return Math.random().toString(36).slice(2,10)}
 function defaults(){return{wedstrijden:[],spelers:[],indeling:{},instellingen:{vereniging:'Mijn Basketbalvereniging',seizoen:'2025-2026'},tellingen:{},archief:{},mappings:{wedstrijden:{date:'datum',time:'tijd',homeTeam:'thuisteam',awayTeam:'tegenstander'},spelers:{name:'naam',team:'team',role:'rol',license:'licentie'}}}}
 function loadAll(){const d=defaults(),x={};Object.entries(KEYS).forEach(([k,v])=>{try{x[k]=JSON.parse(localStorage.getItem(v))}catch{x[k]=null}});return{wedstrijden:x.wedstrijden||d.wedstrijden,spelers:x.spelers||d.spelers,indeling:x.indeling||d.indeling,instellingen:x.instellingen||d.instellingen,tellingen:x.tellingen||d.tellingen,archief:x.archief||d.archief,mappings:x.mappings||d.mappings}}
-function saveAll(){Object.entries(KEYS).forEach(([k,v])=>localStorage.setItem(v,JSON.stringify(app.data[k])))}
+function saveAll(){Object.entries(KEYS).forEach(([k,v])=>localStorage.setItem(v,JSON.stringify(app.data[k])));pushToCloud();}
+
+/* ===== Supabase: gedeelde database ===== */
+const SUPABASE_URL='https://ezzynaqeplbxrdvebphx.supabase.co';
+const SUPABASE_KEY='sb_publishable_kSW3nWA4nO2y2FlPY7Mupg_ZNqhQ-kT';
+let sb=null;
+try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);}catch(e){console.warn('Supabase init mislukt',e);}
+let _cloudReady=false,_pushTimer=null;
+function pushToCloud(){if(!sb||!_cloudReady)return;clearTimeout(_pushTimer);_pushTimer=setTimeout(_doPush,400);}
+async function _doPush(){if(!sb)return;const stamp=new Date().toISOString();const rows=Object.keys(KEYS).map(k=>({key:k,data:app.data[k]??null,updated_at:stamp}));try{const {error}=await sb.from('app_state').upsert(rows,{onConflict:'key'});if(error)console.warn('Cloud-opslag mislukt',error);}catch(e){console.warn('Cloud-opslag fout',e);}}
+async function syncFromCloud(forceRender){
+  if(!sb)return false;
+  let res;try{res=await sb.from('app_state').select('key,data');}catch(e){console.warn('Cloud-laden fout',e);return false;}
+  if(res.error){console.warn('Cloud-laden mislukt',res.error);return false;}
+  const rows=res.data||[];
+  if(rows.length===0){_cloudReady=true;await _doPush();return true;} // lege database -> bestaande lokale data uploaden
+  let changed=false;
+  rows.forEach(r=>{if(!(r.key in KEYS))return;const incoming=JSON.stringify(r.data);if(JSON.stringify(app.data[r.key])!==incoming){app.data[r.key]=r.data;localStorage.setItem(KEYS[r.key],incoming);changed=true;}});
+  _cloudReady=true;
+  if(changed||forceRender){updateCounts();render();}
+  return true;
+}
+function initCloud(){
+  if(!sb){toast('Geen database-verbinding — offline modus');return;}
+  syncFromCloud(true).then(ok=>{
+    if(ok){toast('Verbonden met gedeelde database');
+      try{sb.channel('app_state_changes').on('postgres_changes',{event:'*',schema:'public',table:'app_state'},()=>syncFromCloud(false)).subscribe();}catch(e){console.warn('Realtime mislukt',e);}
+    }else{toast('Geen database-verbinding — offline modus');}
+  });
+}
 function toast(msg){const el=document.createElement('div');el.className='toast';el.textContent=msg;toasts.appendChild(el);setTimeout(()=>el.remove(),2800)}
 function esc(s=''){return String(s).replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
 function fmtDate(d){const x=new Date(d+'T00:00:00');return isNaN(x)?d:x.toLocaleDateString('nl-NL',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}
@@ -713,6 +743,7 @@ function exportHistory(){const rows=app.data.spelers.map(p=>{const c=app.data.te
 function archiveSeason(){const s=app.data.instellingen.seizoen||'Onbekend seizoen';if(!confirm(`Huidige tellingen archiveren als ${s}?`))return;app.data.archief[s]=JSON.parse(JSON.stringify(app.data.tellingen));app.data.tellingen={};saveAll();render();toast('Nieuw seizoen gestart')}
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const t=e.target;if(!t||t.tagName!=='INPUT')return;if(t.closest&&t.closest('dialog'))return;e.preventDefault();t.blur();});
 updateCounts();render();
+initCloud();
 
 /* ===== wachtwoordbeveiliging (minimale bescherming) ===== */
 const PW_HASH='f9f1edbdd28589eacca335ded87671fab9efe43a06331e49fa71c9a5af652037';
