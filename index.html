@@ -177,13 +177,14 @@
   .day-head .line{flex:1;height:1px;background:var(--border-soft)}
 
   /* ---------- match card ---------- */
-  .match{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+  .match{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;scroll-margin-top:88px}
+  .match.flash{box-shadow:0 0 0 2px var(--primary);transition:box-shadow .25s}
   .match-head{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--border-soft)}
   .time-chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;padding:7px 10px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--border)}
   .time-chip .t{font-family:var(--display);font-weight:700;font-size:17px;line-height:1}
   .time-chip .d{font-size:10.5px;color:var(--faint);margin-top:3px}
-  .match-teams{min-width:0}
-  .match-teams .vs{font-family:var(--display);font-weight:600;font-size:16px}
+  .match-teams{min-width:0;flex:1}
+  .match-teams .vs{font-family:var(--display);font-weight:600;font-size:15px;line-height:1.3}
   .match-teams .vs .home{color:var(--text)} .match-teams .vs .sep{color:var(--faint);font-weight:400;margin:0 7px} .match-teams .vs .away{color:var(--muted)}
   .match-head .grow{flex:1}
   .status{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:var(--r-full);font-size:12px;font-weight:600}
@@ -269,7 +270,7 @@
   .legend .sw{width:11px;height:11px;border-radius:3px}
   .legend .sw.ref{background:var(--primary)} .legend .sw.jury{background:#cfcfcf}
   .hist{display:flex;flex-direction:column;gap:2px}
-  .hist-row{display:grid;grid-template-columns:28px 1fr 230px 70px;gap:var(--sp-3);align-items:center;padding:9px 8px;border-radius:var(--r-sm)}
+  .hist-row{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 116px;gap:var(--sp-3);align-items:center;padding:9px 8px;border-radius:var(--r-sm)}
   .hist-row:hover{background:var(--surface-2)}
   .hist-row .rank{font-family:var(--display);font-weight:700;color:var(--faint);text-align:center}
   .hist-row .who{display:flex;align-items:center;gap:10px;min-width:0}
@@ -279,6 +280,7 @@
   .hseg{height:100%}
   .hseg.ref{background:var(--primary)} .hseg.jury{background:#cfcfcf}
   .hist-row .tot{text-align:right;font-family:var(--display);font-weight:700;font-size:16px}
+  .hist-row .tot small{white-space:nowrap}
   .hist-row .tot small{display:block;font-family:var(--body);font-weight:400;font-size:10.5px;color:var(--faint)}
 
   /* ---------- dialog ---------- */
@@ -592,7 +594,7 @@ function matchCardHtml(m){
   const roles=rolesFor(m);const st=mStatus(m);
   const slots=roles.map(r=>slotHtml(m,r)).join('');
   const t24=m.extra24?`<button class="slot chip empty slot24" data-toggle24-match="${m.id}" title="24-seconde operator verwijderen"><i data-lucide="x"></i> 24-sec weghalen</button>`:`<button class="slot chip empty slot24" data-toggle24-match="${m.id}" title="24-seconde operator toevoegen"><i data-lucide="plus"></i> 24-sec operator</button>`;
-  return `<div class="match"><div class="match-head"><div class="time-chip"><span class="t">${esc(m.time)}</span><span class="d">${weekdayAbbr(m.date)}</span></div><div class="match-teams"><div class="vs"><span class="home">${esc(m.homeTeam)}</span><span class="sep">vs</span><span class="away">${esc(m.awayTeam)}</span></div></div><div class="grow"></div><span class="status ${st[0]}"><span class="d"></span>${st[1]}</span><div class="head-actions"><button class="icon-btn" title="Automatisch indelen" data-auto-match="${m.id}"><i data-lucide="wand-2"></i></button><button class="icon-btn" title="PDF" data-pdf-match="${m.id}"><i data-lucide="file-down"></i></button><button class="icon-btn" title="Kopieer" data-copy-match="${m.id}"><i data-lucide="clipboard"></i></button><button class="icon-btn danger" title="Wis wedstrijd" data-clearfull-match="${m.id}"><i data-lucide="eraser"></i></button></div></div><div class="slots">${slots}${t24}</div></div>`;
+  return `<div class="match" id="m-${m.id}"><div class="match-head"><div class="time-chip"><span class="t">${esc(m.time)}</span><span class="d">${weekdayAbbr(m.date)}</span></div><div class="match-teams"><div class="vs"><span class="home">${esc(m.homeTeam)}</span><span class="sep">vs</span><span class="away">${esc(m.awayTeam)}</span></div></div><span class="status ${st[0]}"><span class="d"></span>${st[1]}</span><div class="head-actions"><button class="icon-btn" title="Automatisch indelen" data-auto-match="${m.id}"><i data-lucide="wand-2"></i></button><button class="icon-btn" title="PDF" data-pdf-match="${m.id}"><i data-lucide="file-down"></i></button><button class="icon-btn" title="Kopieer" data-copy-match="${m.id}"><i data-lucide="clipboard"></i></button><button class="icon-btn danger" title="Wis wedstrijd" data-clearfull-match="${m.id}"><i data-lucide="eraser"></i></button></div></div><div class="slots">${slots}${t24}</div></div>`;
 }
 
 /* ===== picker slide-over ===== */
@@ -687,7 +689,7 @@ const views={
 function bind(){
  bindNew();
  document.querySelectorAll('[data-week]').forEach(b=>b.onclick=()=>{app.weekOffset+=Number(b.dataset.week);render()});
- document.querySelectorAll('[data-open-match]').forEach(b=>b.onclick=()=>{app.selectedMatchId=b.dataset.openMatch;app.tab='indeling';const m=app.data.wedstrijden.find(w=>w.id===b.dataset.openMatch);if(m){const d=new Date(m.date+'T00:00:00');const s=new Date(d);s.setDate(s.getDate()-((d.getDay()+6)%7));const e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}render()});
+ document.querySelectorAll('[data-open-match]').forEach(b=>b.onclick=()=>{app.selectedMatchId=b.dataset.openMatch;app.tab='indeling';const m=app.data.wedstrijden.find(w=>w.id===b.dataset.openMatch);if(m){const d=new Date(m.date+'T00:00:00');const s=new Date(d);s.setDate(s.getDate()-((d.getDay()+6)%7));const e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}render();setTimeout(()=>{const el=document.getElementById('m-'+app.selectedMatchId);if(el){el.scrollIntoView({behavior:'smooth',block:'start'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),2000);}},60)});
  const wf=document.getElementById('wedstrijdFile');if(wf)wf.onchange=e=>importSheet(e.target.files[0],'wedstrijden');
  const pf=document.getElementById('spelersFile');if(pf)pf.onchange=e=>importSheet(e.target.files[0],'spelers');
  const lf=document.getElementById('licentieFile');if(lf)lf.onchange=e=>importSheet(e.target.files[0],'licenties');
@@ -698,7 +700,7 @@ function bind(){
  const _dam=document.getElementById('deleteAllMatchesBtn');if(_dam)_dam.onclick=deleteAllMatches;
  const _dap=document.getElementById('deleteAllPlayersBtn');if(_dap)_dap.onclick=deleteAllPlayers;
  document.querySelectorAll('[data-player-status]').forEach(s=>s.onchange=()=>changePlayerStatus(s.dataset.playerStatus,s.value));
- document.querySelectorAll('[data-player-role]').forEach(s=>s.onchange=()=>{const p=player(s.dataset.playerRole);if(p){p.role=s.value;saveAll();render();toast('Rol bijgewerkt')}});
+ document.querySelectorAll('[data-player-role]').forEach(s=>s.onchange=()=>{const p=player(s.dataset.playerRole);if(p){p.role=s.value;saveAll();toast('Rol bijgewerkt')}});
  document.querySelectorAll('[data-player-reason]').forEach(i=>i.onchange=()=>{const p=player(i.dataset.playerReason);if(p){p.reason=i.value;saveAll();toast('Reden opgeslagen')}});
  document.querySelectorAll('[data-edit-player]').forEach(b=>b.onclick=()=>openPlayerDialog(b.dataset.editPlayer));
  document.querySelectorAll('[data-delete-player]').forEach(b=>b.onclick=()=>deletePlayer(b.dataset.deletePlayer));
@@ -744,7 +746,7 @@ function deleteAllPlayers(){if(!app.data.spelers.length)return toast('Er zijn ge
 function openPlayerDialog(id){const p=app.data.spelers.find(x=>x.id===id)||{id:null,voornaam:'',tussenvoegsel:'',achternaam:'',team:'',role:'beide',license:'',status:'available',reason:''};playerDialog.innerHTML=`<form method="dialog" class="modal"><h3>${id?'Speler bewerken':'Speler toevoegen'}</h3><div class="form-grid"><div><label class="small faint">Voornaam</label><input id="pdVoornaam" type="text" value="${esc(p.voornaam||'')}"></div><div><label class="small faint">Tussenvoegsel</label><input id="pdTussen" type="text" value="${esc(p.tussenvoegsel||'')}" placeholder="bv. van der"></div><div><label class="small faint">Achternaam</label><input id="pdAchternaam" type="text" value="${esc(p.achternaam||'')}"></div><div><label class="small faint">Team</label><input id="pdTeam" type="text" value="${esc(p.team)}"></div><div><label class="small faint">Rol</label><select id="pdRole"><option ${p.role==='scheidsrechter'?'selected':''}>scheidsrechter</option><option ${p.role==='jury'?'selected':''}>jury</option><option ${p.role==='beide'?'selected':''}>beide</option></select></div><div><label class="small faint">Licentie</label><select id="pdLicense"><option value="" ${!p.license?'selected':''}>Geen</option><option value="BS2" ${p.license==='BS2'?'selected':''}>BS2</option><option value="BS3" ${p.license==='BS3'?'selected':''}>BS3</option></select></div><div><label class="small faint">Status</label><select id="pdStatus"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select></div><div style="grid-column:1/-1"><label class="small faint">Reden</label><input id="pdReason" type="text" value="${esc(p.reason)}"></div></div><div class="toolbar" style="margin-top:1rem"><button class="btn" id="savePlayerDialogBtn" type="button">Opslaan</button><button class="btn ghost" type="submit">Sluiten</button></div></form>`;playerDialog.showModal();bindEnterSave(playerDialog,'savePlayerDialogBtn');document.getElementById('savePlayerDialogBtn').onclick=()=>{const obj={id:p.id||uid(),voornaam:pdVoornaam.value.trim(),tussenvoegsel:pdTussen.value.trim(),achternaam:pdAchternaam.value.trim(),team:pdTeam.value.trim(),role:pdRole.value,license:pdLicense.value,status:pdStatus.value,reason:pdReason.value.trim()};if(!obj.voornaam&&!obj.achternaam)return alert('Vul minimaal een voornaam of achternaam in');obj.name=fullName(obj);if(p.id){const idx=app.data.spelers.findIndex(x=>x.id===p.id);app.data.spelers[idx]=obj}else app.data.spelers.push(obj);saveAll();playerDialog.close();render();toast('Speler opgeslagen')}}
 function deletePlayer(id){const p=player(id);if(!p)return;if(!confirm(`${fullName(p)} verwijderen? Bestaande indelingen met deze speler worden gewist.`))return;Object.keys(app.data.indeling).forEach(mid=>{const asg=app.data.indeling[mid];Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]})});app.data.spelers=app.data.spelers.filter(x=>x.id!==id);updateCounts();saveAll();render();toast('Speler verwijderd')}
 function splitCSV(v){return String(v||'').split(',').map(x=>x.trim()).filter(Boolean)}
-function changePlayerStatus(id,status){const p=player(id);if(!p)return;const today=new Date();today.setHours(0,0,0,0);const futureConflicts=[];if(status!=='available'){app.data.wedstrijden.forEach(w=>{const d=new Date(w.date+'T00:00:00');if(d<today)return;const assigned=Object.values(assignmentFor(w.id)).includes(id);if(assigned)futureConflicts.push(w)})}if(futureConflicts.length){const remove=confirm(`${fullName(p)} staat nog ingepland voor ${futureConflicts.length} toekomstige wedstrijd(en). OK = toekomstige indelingen verwijderen, Annuleren = alleen conflictwaarschuwing tonen.`);if(remove){futureConflicts.forEach(w=>{const asg=assignmentFor(w.id);Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]});app.data.indeling[w.id]=asg})}}p.status=status;updateCounts();saveAll();render();toast('Beschikbaarheidsstatus aangepast')}
+function changePlayerStatus(id,status){const p=player(id);if(!p)return;const today=new Date();today.setHours(0,0,0,0);const futureConflicts=[];if(status!=='available'){app.data.wedstrijden.forEach(w=>{const d=new Date(w.date+'T00:00:00');if(d<today)return;const assigned=Object.values(assignmentFor(w.id)).includes(id);if(assigned)futureConflicts.push(w)})}if(futureConflicts.length){const remove=confirm(`${fullName(p)} staat nog ingepland voor ${futureConflicts.length} toekomstige wedstrijd(en). OK = toekomstige indelingen verwijderen, Annuleren = alleen conflictwaarschuwing tonen.`);if(remove){futureConflicts.forEach(w=>{const asg=assignmentFor(w.id);Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]});app.data.indeling[w.id]=asg})}}p.status=status;updateCounts();saveAll();toast('Beschikbaarheidsstatus aangepast')}
 function assignRole(matchId,roleKey,playerId){const asg={...assignmentFor(matchId)};if(playerId)asg[roleKey]=playerId;else delete asg[roleKey];app.data.indeling[matchId]=asg;updateCounts();saveAll();render()}
 function toggle24(matchId){const m=app.data.wedstrijden.find(w=>w.id===matchId);if(!m)return;m.extra24=!m.extra24;if(!m.extra24){const asg=app.data.indeling[matchId];if(asg)delete asg.jury3}updateCounts();saveAll();render();toast(m.extra24?'24-seconde operator toegevoegd':'24-seconde operator verwijderd')}
 function setRefLic(matchId,roleKey,val){const m=app.data.wedstrijden.find(w=>w.id===matchId);if(!m)return;m.refLic=m.refLic||{};if(val)m.refLic[roleKey]=val;else delete m.refLic[roleKey];saveAll();render();toast(val?('Licentie-eis '+val+' ingesteld'):'Licentie-eis verwijderd')}
