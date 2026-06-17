@@ -309,16 +309,22 @@
   .filterbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .filterbar .searchbar{flex:1 1 200px;max-width:none;margin:0}
   .filterbar select{width:auto;min-width:140px;flex:0 1 170px}
-  .player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-  .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;min-width:0}
-  .pcard-head{display:flex;align-items:center;gap:10px}
-  .pcard-nm{font-weight:600;font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pcard-acts{display:flex;gap:2px;flex:none}
-  .pcard-team{display:flex;align-items:center;gap:6px;color:var(--faint);font-size:12.5px;margin:9px 0 11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pcard-team svg,.pcard-team i{width:13px;height:13px;flex:none}
-  .pcard-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-  .pcard-grid label{display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--faint);min-width:0}
-  .pcard-grid .mini{width:100%;min-width:0}
+  .slist{display:flex;flex-direction:column}
+  .slist-head{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 108px 100px 132px minmax(0,1.1fr) 60px;gap:10px;align-items:center;padding:4px 12px 9px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--faint)}
+  .srow{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 108px 100px 132px minmax(0,1.1fr) 60px;gap:10px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--border-soft)}
+  .srow:last-child{border-bottom:none}
+  .srow:hover{background:var(--surface-2)}
+  .srow .cell-name{min-width:0}
+  .srow .cell-name .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13.5px}
+  .srow .sc-team{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px}
+  .srow .mini{width:100%;min-width:0}
+  .srow .row-acts{justify-content:flex-end}
+  @media(max-width:760px){
+    .slist-head{display:none}
+    .srow{grid-template-columns:1fr 1fr!important;gap:7px 10px;padding:11px 12px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:8px}
+    .srow .cell-name{grid-column:1/-1}
+    .srow .row-acts{grid-column:1/-1}
+  }
 
   /* ---------- wachtwoordscherm ---------- */
   .auth-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:var(--sp-4)}
@@ -682,10 +688,10 @@ const views={
     if(sf.status&&p.status!==sf.status)return false;
     return true;
   });
-  const card=p=>`<div class="pcard"><div class="pcard-head"><span class="avatar sm">${initials(p)}</span><span class="pcard-nm">${esc(fullName(p))}</span><div class="pcard-acts"><button class="icon-btn" title="Bewerken" data-edit-player="${p.id}"><i data-lucide="pencil"></i></button><button class="icon-btn danger" title="Verwijderen" data-delete-player="${p.id}"><i data-lucide="trash-2"></i></button></div></div><div class="pcard-team"><i data-lucide="users"></i> ${esc(playerTeams(p).join(', ')||'—')}</div><div class="pcard-grid"><label>Rol<select class="mini" data-player-role="${p.id}"><option value="" ${!roleNorm(p.role)?'selected':''}>— geen —</option><option value="scheidsrechter" ${roleNorm(p.role)==='scheidsrechter'?'selected':''}>Scheidsrechter</option><option value="jury" ${roleNorm(p.role)==='jury'?'selected':''}>Jury</option><option value="beide" ${roleNorm(p.role)==='beide'?'selected':''}>Beide</option></select></label><label>Niveau<select class="mini" data-player-niveau="${p.id}"><option value="" ${!p.license?'selected':''}>Geen</option>${NIVEAUS.map(n=>`<option value="${n}" ${p.license===n?'selected':''}>${n}</option>`).join('')}</select></label><label>Beschikbaarheid<select class="mini" data-player-status="${p.id}"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select></label><label>Reden<input type="text" class="mini" data-player-reason="${p.id}" value="${esc(p.reason||'')}" placeholder="—"></label></div></div>`;
+  const row=p=>`<div class="srow"><div class="cell-name"><span class="avatar sm">${initials(p)}</span><span class="nm">${esc(fullName(p))}</span></div><div class="mono-faint sc-team">${esc(playerTeams(p).join(', ')||'—')}</div><select class="mini" data-player-role="${p.id}"><option value="" ${!roleNorm(p.role)?'selected':''}>— geen —</option><option value="scheidsrechter" ${roleNorm(p.role)==='scheidsrechter'?'selected':''}>Scheidsrechter</option><option value="jury" ${roleNorm(p.role)==='jury'?'selected':''}>Jury</option><option value="beide" ${roleNorm(p.role)==='beide'?'selected':''}>Beide</option></select><select class="mini" data-player-niveau="${p.id}"><option value="" ${!p.license?'selected':''}>Geen</option>${NIVEAUS.map(n=>`<option value="${n}" ${p.license===n?'selected':''}>${n}</option>`).join('')}</select><select class="mini" data-player-status="${p.id}"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select><input type="text" class="mini" data-player-reason="${p.id}" value="${esc(p.reason||'')}" placeholder="—"><div class="row-acts"><button class="icon-btn" title="Bewerken" data-edit-player="${p.id}"><i data-lucide="pencil"></i></button><button class="icon-btn danger" title="Verwijderen" data-delete-player="${p.id}"><i data-lucide="trash-2"></i></button></div></div>`;
   return `<div class="page-head"><div class="lead"><h2>Spelers</h2><p>De pool van scheidsrechters en juryleden. Licenties (BS2/BS3) koppelen automatisch op naam na een Excel-upload.</p></div><div class="head-tools"><label class="file-label"><input id="spelersFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="upload"></i> Spelers uploaden</label><label class="file-label"><input id="licentieFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="award"></i> Licenties uploaden</label><button class="btn primary" id="openPlayerForm"><i data-lucide="plus"></i> Speler toevoegen</button><button class="btn danger" id="deleteAllPlayersBtn"><i data-lucide="trash-2"></i> Alle verwijderen</button></div></div>
   <div class="card" style="padding:14px 16px"><div class="filterbar"><div class="searchbar"><i data-lucide="search"></i><input type="search" id="playerSearch" placeholder="Zoek op naam…" value="${esc(app.playerFilter||'')}"></div><select class="mini" id="fTeam"><option value="">Alle teams</option>${allTeams.map(t=>`<option ${sf.team===t?'selected':''}>${esc(t)}</option>`).join('')}</select><select class="mini" id="fRol"><option value="">Alle rollen</option><option value="scheidsrechter" ${sf.rol==='scheidsrechter'?'selected':''}>Scheidsrechter</option><option value="jury" ${sf.rol==='jury'?'selected':''}>Jury</option><option value="beide" ${sf.rol==='beide'?'selected':''}>Beide</option><option value="geen" ${sf.rol==='geen'?'selected':''}>Geen rol</option></select><select class="mini" id="fNiveau"><option value="">Alle niveaus</option><option value="Geen" ${sf.niveau==='Geen'?'selected':''}>Geen</option>${NIVEAUS.map(n=>`<option value="${n}" ${sf.niveau===n?'selected':''}>${n}</option>`).join('')}</select><select class="mini" id="fStatus"><option value="">Alle beschikbaarheid</option><option value="available" ${sf.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${sf.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${sf.status==='inactive'?'selected':''}>Inactief</option></select>${(sf.team||sf.rol||sf.niveau||sf.status)?`<button class="btn ghost" id="clearFilters"><i data-lucide="x"></i> Wis filters</button>`:''}<span class="small faint" style="margin-left:auto">${list.length} van ${app.data.spelers.length}</span></div></div>
-  <div class="player-grid">${list.map(card).join('')||'<div class="empty-list">Geen spelers gevonden.</div>'}</div>`;
+  <div class="card tight" style="padding:6px 4px"><div class="slist-head"><span>Naam</span><span>Team(s)</span><span>Rol</span><span>Niveau</span><span>Status</span><span>Reden</span><span></span></div><div class="slist">${list.map(row).join('')||'<div class="empty-list">Geen spelers gevonden.</div>'}</div></div>`;
  },
  indeling(){
   const {from,to}=rangeBounds();
