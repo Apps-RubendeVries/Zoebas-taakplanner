@@ -312,6 +312,10 @@
   .auth-box input{text-align:center}
   .auth-box .btn{justify-content:center}
   .auth-error{color:var(--block);font-size:13px;font-weight:600}
+
+  /* ---------- help-knop ---------- */
+  .help-btn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:18px;line-height:1;color:var(--primary);background:var(--primary-soft);box-shadow:inset 0 0 0 1px rgba(255,107,0,.3);text-decoration:none;flex:none;transition:all .12s}
+  .help-btn:hover{background:var(--primary);color:#1a1206}
 </style>
 </head>
 <body>
@@ -334,7 +338,7 @@
     <div class="side-foot">Wedstrijdtaken eerlijk verdeeld<br>over je vereniging</div>
   </aside>
   <main>
-    <div class="topbar"><div><div class="crumb" id="topCrumb"></div><h1 id="pageTitle">Dashboard</h1></div></div>
+    <div class="topbar"><div><div class="crumb" id="topCrumb"></div><h1 id="pageTitle">Dashboard</h1></div><a class="help-btn" href="Handleiding-Taakplanner.pdf" download title="Handleiding downloaden">?</a></div>
     <div id="view" class="content"></div>
   </main>
 </div>
