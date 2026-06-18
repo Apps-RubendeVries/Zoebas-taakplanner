@@ -201,6 +201,8 @@
   .slot-label{display:flex;align-items:center;justify-content:space-between;gap:6px}
   .slot-label .role{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--faint)}
   .lic-tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:var(--r-full);background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border);cursor:pointer}
+  .lic-sel{width:auto;min-width:0;padding:2px 22px 2px 9px;font-size:10px;font-weight:700;letter-spacing:.3px;border-radius:var(--r-full);background-color:var(--surface-3);color:var(--muted);border:1px solid var(--border);background-position:right 6px center;cursor:pointer}
+  .lic-sel.set{background-color:var(--primary-soft);color:var(--primary);border-color:rgba(255,107,0,.35)}
   .lic-tag:hover{color:var(--text)}
   .lic-tag.set{background:var(--primary-soft);color:var(--primary);box-shadow:inset 0 0 0 1px rgba(255,107,0,.3)}
   .chip{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border-radius:var(--r-sm);padding:7px;transition:background .12s}
@@ -685,7 +687,7 @@ function slotHtml(m,role){
   const hasBlock=warns.some(w=>w.sev==='block');const hasWarn=!hasBlock&&warns.length>0;
   const cls='slot'+(hasBlock?' has-block':hasWarn?' has-warn':'');
   const req=role.type==='scheidsrechter'?refLicReq(m,role.key):'';
-  const licBtn=role.type==='scheidsrechter'?`<button class="lic-tag${req?' set':''}" data-lic-cycle data-lic-match="${m.id}" data-lic-role="${role.key}" title="Klik om vereiste licentie te wijzigen">${req?req+' vereist':'geen eis'}</button>`:'';
+  const licBtn=role.type==='scheidsrechter'?`<select class="lic-sel${req?' set':''}" data-lic-select data-lic-match="${m.id}" data-lic-role="${role.key}" title="Vereist niveau / licentie"><option value=""${!req?' selected':''}>geen eis</option>${['Beginner','Gevorderd','Ervaren','BS2','BS3'].map(n=>`<option value="${n}"${req===n?' selected':''}>${n}</option>`).join('')}</select>`:'';
   const body=p?`<button class="chip filled" data-pick-match="${m.id}" data-pick-role="${role.key}"><span class="avatar">${initials(p)}</span><span class="chip-info"><span class="nm">${esc(fullName(p))}</span><span class="mt">${isPoule(pid)?'<b style="color:var(--primary)">Poule</b> · ':''}${esc(playerTeams(p).join(', ')||'—')}${p.license?' · '+esc(p.license):''}</span></span><span class="x" data-clear-slot data-clear-match="${m.id}" data-clear-role="${role.key}" title="Verwijderen"><i data-lucide="x"></i></span></button>`:`<button class="chip empty" data-pick-match="${m.id}" data-pick-role="${role.key}"><i data-lucide="plus"></i> Toewijzen</button>`;
   const wb=warns.length?`<div class="slot-warns">${warns.map(w=>`<span class="wbadge ${w.sev}"><i data-lucide="${w.sev==='block'?'ban':'alert-triangle'}"></i>${esc(w.label)}</span>`).join('')}</div>`:'';
   return `<div class="${cls}"><div class="slot-label"><span class="role">${esc(role.label)}</span>${licBtn}</div>${body}${wb}</div>`;
@@ -725,7 +727,7 @@ function bindNew(){
   document.querySelectorAll('[data-goto-indeling]').forEach(b=>b.onclick=()=>{app.tab='indeling';render();});
   document.querySelectorAll('[data-pick-match]').forEach(b=>b.onclick=()=>openPicker(b.dataset.pickMatch,b.dataset.pickRole));
   document.querySelectorAll('[data-clear-slot]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();assignRole(b.dataset.clearMatch,b.dataset.clearRole,'');});
-  document.querySelectorAll('[data-lic-cycle]').forEach(b=>b.onclick=()=>{const m=app.data.wedstrijden.find(w=>w.id===b.dataset.licMatch);const cur=(m&&m.refLic&&m.refLic[b.dataset.licRole])||'';const order=['','Beginner','Gevorderd','Ervaren','BS2','BS3'];const next=order[(order.indexOf(cur)+1)%order.length];setRefLic(b.dataset.licMatch,b.dataset.licRole,next);});
+  document.querySelectorAll('[data-lic-select]').forEach(s=>s.onchange=()=>setRefLic(s.dataset.licMatch,s.dataset.licRole,s.value));
 }
 
 const views={
