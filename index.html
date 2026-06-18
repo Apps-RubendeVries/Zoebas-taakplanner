@@ -533,7 +533,7 @@ function dayGapForPerson(pid,match,tempIndeling){const ind=tempIndeling||app.dat
 // Halfjaar-belasting: aantal taken per persoon in wedstrijden van de laatste 6 maanden (incl. geplande); voor 'vaker dan gemiddeld'-waarschuwing
 function halfYearSince(){const d=new Date();d.setMonth(d.getMonth()-6);return isoLocal(d);}
 function computeHalfYear(){const since=halfYearSince();const counts={};app.data.wedstrijden.forEach(w=>{if(w.date<since)return;const asg=app.data.indeling[w.id]||{};rolesFor(w).forEach(role=>{const pid=asg[role.key];if(pid)counts[pid]=(counts[pid]||0)+1;});});const pool=new Set([...app.data.spelers.map(p=>p.id),...(app.data.poule||[]).map(p=>p.id)]);const total=Object.values(counts).reduce((a,b)=>a+b,0);return {counts,avg:pool.size?total/pool.size:0};}
-function overAvg(id){const hy=app._hy||(app._hy=computeHalfYear());const c=hy.counts[id]||0;return c>=2&&c>Math.max(1,Math.round(hy.avg));}
+function overAvg(id){if(isPoule(id))return false;const hy=app._hy||(app._hy=computeHalfYear());const c=hy.counts[id]||0;return c>=2&&c>Math.max(1,Math.round(hy.avg));}
 function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
   const currentAsg=tempAsg||assignmentFor(match.id);
   const usedInMatch=Object.values(currentAsg).filter(Boolean);
