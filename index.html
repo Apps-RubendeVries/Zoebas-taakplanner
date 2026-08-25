@@ -559,6 +559,19 @@ function sameDayElsewhere(pid,match,tempIndeling){
 function teamPlaysOnDay(team,date){return !!normTeam(team)&&app.data.wedstrijden.some(w=>w.date===date&&!w.away&&sameTeam(w.homeTeam,team));}
 // Speelt (een van) de teams van deze persoon die dag een UITwedstrijd? Dan is hij er niet.
 function teamPlaysAwayOnDay(team,date){return !!normTeam(team)&&app.data.wedstrijden.some(w=>w.date===date&&w.away&&sameTeam(w.awayTeam,team));}
+// Speelt het eigen team die dag UIT binnen 4 uur van deze taak? Een wedstrijd duurt ~2 uur, plus reistijd
+// naar een andere sporthal. Fluiten om 11:00 kan dus alleen als de eigen wedstrijd om 15:00 of later is
+// (of om 07:00 of eerder). Onbekende aanvangstijd telt als conflict — dan valt het niet te beoordelen.
+const AWAY_GAP_MIN=4*60;
+function awayClash(p,match){
+  const teams=playerTeams(p);
+  return app.data.wedstrijden.some(w=>{
+    if(w.date!==match.date||!w.away)return false;
+    if(!teams.some(t=>sameTeam(w.awayTeam,t)))return false;
+    if(!String(w.time||'').trim())return true;
+    return Math.abs(toMin(w.time)-toMin(match.time))<AWAY_GAP_MIN;
+  });
+}
 function playerTeams(p){return (p&&p.teams&&p.teams.length?p.teams:[p&&p.team]).filter(Boolean);}
 function isOurClub(name){const c=normTeam(app.data.instellingen.vereniging||'');return !!c&&normTeam(name).includes(c);}
 function knownTeamSet(){const s=new Set();app.data.wedstrijden.forEach(w=>{if(w.homeTeam)s.add(w.homeTeam);if(w.awayTeam)s.add(w.awayTeam);});app.data.spelers.forEach(p=>playerTeams(p).forEach(t=>s.add(t)));(app.data.poule||[]).forEach(p=>playerTeams(p).forEach(t=>s.add(t)));return [...s];}
@@ -658,6 +671,8 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
         let score=0;const reasons=[];let hard=false;const teams=playerTeams(per);const tier=reqLic?-licRank(per.license):0; // alleen op licentie ordenen als de wedstrijd er een eist
         if(onVacation(p,match.date)){hard=true;score+=1000;reasons.push('Afwezig (vakantie)')}
         if(weekAssignCount(p.id,match.date,tempIndeling,match.id)>=2){hard=true;score+=1000;reasons.push('Al 2× deze week')}
+        // HARDE regel: eigen team speelt uit binnen 4 uur van deze taak -> reistijd, dus niet inzetbaar
+        if(awayClash(per,match)){hard=true;score+=1000;reasons.push('Eigen team speelt uit binnen 4 uur')}
         const playsNow=app.data.wedstrijden.some(w=>w.date===match.date&&toMin(w.time)===toMin(match.time)&&teams.some(t=>(!w.away&&sameTeam(w.homeTeam,t))||(w.away&&sameTeam(w.awayTeam,t))));
         if(playsNow){hard=true;score+=1000;reasons.push('Eigen team speelt nu')}
         if(tooLateForYouth(per,match)){hard=true;score+=1000;reasons.push('U14 of jonger — niet na 18:30')}
