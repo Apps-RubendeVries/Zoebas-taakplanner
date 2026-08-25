@@ -86,6 +86,17 @@
   .section-h{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap}
   .section-h h3{margin:0;font-family:var(--display);font-weight:600;font-size:15px}
   .hint{font-size:12.5px;color:var(--faint);line-height:1.5;max-width:70ch}
+  /* controlepaneel */
+  .checklist{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto;margin-top:var(--sp-2)}
+  .checkrow{display:grid;grid-template-columns:132px 52px minmax(160px,1fr) 118px minmax(160px,1.2fr);gap:10px;align-items:baseline;width:100%;text-align:left;padding:8px 10px;background:var(--surface-2);border:1px solid var(--border-soft);border-left:3px solid var(--warn);border-radius:var(--r-sm);color:var(--text);font-size:12.5px;cursor:pointer}
+  .checkrow:hover{background:var(--surface-3)}
+  .checkrow.block{border-left-color:var(--block)}
+  .checkrow .cr-date,.checkrow .cr-time{color:var(--muted)}
+  .checkrow .cr-role{color:var(--muted)}
+  .checkrow .cr-why{color:var(--block)}
+  .checkrow.open .cr-why{color:var(--warn)}
+  @media(max-width:760px){.checkrow{grid-template-columns:1fr 1fr;gap:4px}.checkrow .cr-match,.checkrow .cr-why{grid-column:1/-1}}
+  .match.flash{outline:2px solid var(--primary);outline-offset:3px;transition:outline-color .4s}
 
   /* ---------- segmented ---------- */
   .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-full);padding:3px;flex-wrap:wrap}
@@ -394,6 +405,7 @@
 <dialog id="playerDialog"></dialog>
 <dialog id="mappingDialog"></dialog>
 <dialog id="pouleDialog"></dialog>
+<dialog id="checkDialog"></dialog>
 <script>
 const KEYS={wedstrijden:'bball_wedstrijden',spelers:'bball_spelers',indeling:'bball_indeling',instellingen:'bball_instellingen',tellingen:'bball_tellingen_huidig',archief:'bball_tellingen_archief',mappings:'bball_mappings',poule:'bball_poule'};
 const tabs=[['dashboard','Dashboard','layout-dashboard'],['wedstrijden','Wedstrijden','calendar-days'],['spelers','Spelers','users'],['poule','Poule','flag'],['indeling','Indeling','clipboard-list'],['geschiedenis','Geschiedenis','history'],['instellingen','Instellingen','settings']];
@@ -774,7 +786,7 @@ function render(){try{localStorage.setItem('bball_tab',app.tab)}catch(e){}app._h
 /* ===== redesign view layer (new look, original logic) ===== */
 function initials(p){const f=fullName(p);const parts=String(f||'').split(' ').filter(Boolean);if(!parts.length)return '?';const a=parts[0][0]||'';const b=parts.length>1?parts[parts.length-1][0]:'';return (a+b).toUpperCase();}
 function weekdayAbbr(date){const d=new Date(date+'T00:00:00');return isNaN(d)?'':d.toLocaleDateString('nl-NL',{weekday:'short'}).replace('.','');}
-function slotWarns(pid,match,role){const w=[];if(!pid)return w;const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(overAvg(pid))w.push({sev:'warn',label:'vaak ingedeeld'});if(isPoule(pid)){const rec=pouleMember(pid);if(!rec)return w;const p=person(pid)||rec;if(onVacation(rec,match.date))w.push({sev:'block',label:'afwezig'});if(tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(weekAssignCount(pid,match.date,null,match.id)>=2)w.push({sev:'block',label:'al 2× deze week'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else{const g=dayGapForPerson(pid,match,null);if(g!==null&&g>=3)w.push({sev:'warn',label:'niet aansluitend'});}if(app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}const p=player(pid);if(p){if(!roleNorm(p.role))w.push({sev:'block',label:'geen rol'});else if(!roleEligible(p.role,role.type))w.push({sev:'block',label:'rol past niet'});}if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(p&&tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(p&&!playerTeams(p).some(t=>teamPlaysOnDay(t,match.date)))w.push({sev:'block',label:'team speelt niet die dag'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(sameDayElsewhere(pid,match,null))w.push({sev:'block',label:'al een taak vandaag'});if(p&&app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}
+function slotWarns(pid,match,role){const w=[];if(!pid)return w;const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(overAvg(pid))w.push({sev:'warn',label:'vaak ingedeeld'});if(isPoule(pid)){const rec=pouleMember(pid);if(!rec)return w;const p=person(pid)||rec;if(onVacation(rec,match.date))w.push({sev:'block',label:'afwezig'});if(tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(weekAssignCount(pid,match.date,null,match.id)>=2)w.push({sev:'block',label:'al 2× deze week'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else{const g=dayGapForPerson(pid,match,null);if(g!==null&&g>=3)w.push({sev:'warn',label:'niet aansluitend'});}if(app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(awayClash(p,match))w.push({sev:'block',label:'uitwedstrijd binnen 4 uur'});if(reqLic&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}const p=player(pid);if(p){if(!roleNorm(p.role))w.push({sev:'block',label:'geen rol'});else if(!roleEligible(p.role,role.type))w.push({sev:'block',label:'rol past niet'});}if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(p&&tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(p&&availabilityFor(p).length){if(notAvailable(p,match))w.push({sev:'block',label:'buiten eigen beschikbaarheid'});}else{if(p&&!playerTeams(p).some(t=>teamPlaysOnDay(t,match.date)))w.push({sev:'block',label:'team speelt niet die dag'});if(p&&playerTeams(p).some(t=>teamPlaysAwayOnDay(t,match.date)))w.push({sev:'block',label:'eigen team speelt uit'});}if(p&&role.type==='scheidsrechter'&&tooYoungForSeniorRef(p,match))w.push({sev:'block',label:'onder 18 bij U22/senioren'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(sameDayElsewhere(pid,match,null))w.push({sev:'block',label:'al een taak vandaag'});if(p&&app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}
 function mBlock(match){return rolesFor(match).some(r=>{const pid=assignmentFor(match.id)[r.key];return pid&&slotWarns(pid,match,r).some(x=>x.sev==='block')});}
 function mStatus(match){const roles=rolesFor(match),asg=assignmentFor(match.id),filled=roles.filter(r=>asg[r.key]).length;if(mBlock(match))return['block','Conflict'];if(filled===0)return['open','Niet ingedeeld'];if(filled===roles.length)return['ok','Volledig'];return['warn',filled+'/'+roles.length+' ingevuld'];}
 
@@ -796,6 +808,44 @@ function matchCardHtml(m){
   return `<div class="match" id="m-${m.id}"><div class="match-head"><div class="time-chip"><span class="t">${esc(m.time)}</span><span class="d">${weekdayAbbr(m.date)}</span></div><div class="match-teams"><div class="vs"><span class="home">${esc(m.homeTeam)}</span><span class="sep">vs</span><span class="away">${esc(m.awayTeam)}</span></div></div><span class="status ${st[0]}"><span class="d"></span>${st[1]}</span><div class="head-actions"><button class="icon-btn" title="Automatisch indelen" data-auto-match="${m.id}"><i data-lucide="wand-2"></i></button><button class="icon-btn" title="PDF" data-pdf-match="${m.id}"><i data-lucide="file-down"></i></button><button class="icon-btn" title="Kopieer" data-copy-match="${m.id}"><i data-lucide="clipboard"></i></button><button class="icon-btn danger" title="Wis wedstrijd" data-clearfull-match="${m.id}"><i data-lucide="eraser"></i></button></div></div><div class="slots">${slots}${t24}</div></div>`;
 }
 
+/* ===== controle: open plekken en conflicten ===== */
+function scanIndeling(){
+  const open=[],blocks=[];
+  app.data.wedstrijden.filter(m=>!m.away).slice()
+    .sort((a,b)=>(a.date+' '+(a.time||'')).localeCompare(b.date+' '+(b.time||'')))
+    .forEach(m=>{
+      rolesFor(m).forEach(r=>{
+        const pid=assignmentFor(m.id)[r.key];
+        if(!pid){open.push({m,role:r});return}
+        const bl=slotWarns(pid,m,r).filter(x=>x.sev==='block');
+        if(bl.length)blocks.push({m,role:r,pid,labels:bl.map(x=>x.label)});
+      });
+    });
+  const mx=maxTasks(),counts=taskCountMap(null);
+  const over=mx?Object.keys(counts).filter(id=>counts[id]>mx&&!isPoule(id))
+    .map(id=>({id,n:counts[id]})).sort((a,b)=>b.n-a.n):[];
+  return {open,blocks,over};
+}
+function jumpToSlot(mid,roleKey,openPick){
+  const m=app.data.wedstrijden.find(w=>w.id===mid);if(!m)return;
+  try{checkDialog.close()}catch(e){}
+  if(!inRange(m.date)){app.rangeFrom=m.date;app.rangeTo=m.date;}
+  app.tab='indeling';render();
+  setTimeout(()=>{
+    const el=document.getElementById('m-'+mid);
+    if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1500);}
+    if(openPick)openPicker(mid,roleKey);
+  },80);
+}
+function openCheckDialog(){
+  const {open,blocks,over}=scanIndeling();
+  const row=(x,kind)=>`<button type="button" class="checkrow ${kind}" data-jump-match="${x.m.id}" data-jump-role="${x.role.key}" data-jump-pick="${kind==='open'?'1':'0'}"><span class="cr-date">${esc(fmtDate(x.m.date))}</span><span class="cr-time">${esc(x.m.time||'—')}</span><span class="cr-match">${esc(x.m.homeTeam)} vs. ${esc(x.m.awayTeam)}</span><span class="cr-role">${esc(x.role.label)}</span><span class="cr-why">${kind==='open'?'nog leeg':esc(fullName(person(x.pid)))+' — '+esc(x.labels.join(', '))}</span></button>`;
+  const sect=(titel,arr,kind,leeg)=>`<div class="section-h" style="margin-top:var(--sp-5)"><h3>${titel} <span class="badge ${arr.length?(kind==='block'?'block':'warn'):'ok'}">${arr.length}</span></h3></div>`+(arr.length?`<div class="checklist">${arr.map(x=>row(x,kind)).join('')}</div>`:`<p class="hint">${leeg}</p>`);
+  const overHtml=over.length?`<div class="section-h" style="margin-top:var(--sp-5)"><h3>Boven het maximum <span class="badge block">${over.length}</span></h3></div><p class="hint">${over.map(o=>esc(fullName(person(o.id)))+' ('+o.n+' taken)').join(' · ')}</p>`:'';
+  checkDialog.innerHTML=`<form method="dialog" class="modal" style="max-width:900px"><h3>Controle indeling</h3><p class="hint">Klik op een regel om er in het indeelscherm naartoe te springen. Bij een lege plek gaat het keuzepaneel meteen open.</p>${sect('Conflicten',blocks,'block','Geen conflicten — alles voldoet aan de regels.')}${sect('Open plekken',open,'open','Alles is ingevuld.')}${overHtml}<div class="toolbar" style="margin-top:var(--sp-5)"><button class="btn ghost" type="submit">Sluiten</button></div></form>`;
+  checkDialog.showModal();
+  checkDialog.querySelectorAll('[data-jump-match]').forEach(b=>b.onclick=e=>{e.preventDefault();jumpToSlot(b.dataset.jumpMatch,b.dataset.jumpRole,b.dataset.jumpPick==='1');});
+}
 /* ===== picker slide-over ===== */
 function openPicker(matchId,roleKey){app.picker={matchId,roleKey};renderPicker('');document.getElementById('pickerScrim').classList.add('show');document.getElementById('picker').classList.add('show');setTimeout(()=>{const s=document.getElementById('pickerSearch');if(s)s.focus()},230);}
 function closePicker(){app.picker=null;document.getElementById('pickerScrim').classList.remove('show');document.getElementById('picker').classList.remove('show');}
@@ -878,7 +928,7 @@ const views={
   rangeMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
   const pct=totalRoles?Math.round(filled/totalRoles*100):0;
   const presets=[['week','Deze week'],['2w','Komende 2 weken'],['4w','Komende 4 weken'],['all','Hele seizoen']];
-  const periodbar=`<div class="periodbar"><div class="toprow"><div style="display:flex;flex-direction:column;gap:12px"><div class="seg">${presets.map(([k,l])=>`<button data-preset="${k}">${l}</button>`).join('')}</div><div class="daterow"><span class="lab">Van</span><div class="date-field"><input type="text" id="rangeFromText" value="${nlDate(from)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeFrom" value="${from}" aria-label="Van"></div><span class="lab">Tot</span><div class="date-field"><input type="text" id="rangeToText" value="${nlDate(to)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeTo" value="${to}" aria-label="Tot"></div></div></div><div class="actions"><button class="btn primary" id="bulkRangeBtn"><i data-lucide="wand-2"></i> Hele periode indelen</button><button class="btn secondary" id="copyRangeBtn"><i data-lucide="clipboard"></i> Kopieer</button><button class="btn danger" id="clearRangeBtn"><i data-lucide="eraser"></i> Wis periode</button></div></div><div class="progress-wrap"><div class="ring" style="--p:${pct}"><div class="inner">${pct}%</div></div><div class="progress-text"><div class="big">${filled} van ${totalRoles} taken ingevuld</div><div class="small">${rangeMatches.length} wedstrijd(en) in deze periode${conflicts>0?` · <b style="color:var(--block)">${conflicts} conflict${conflicts>1?'en':''}</b>`:(rangeMatches.length?' · <b style="color:var(--good)">geen conflicten</b>':'')}</div></div><div style="flex:1"></div><button class="btn danger" id="clearAllBtn" title="Wis hele seizoensindeling"><i data-lucide="trash-2"></i> Wis alles</button></div><div class="hint">Klik op een rol om een persoon te kiezen. In het zijpaneel staan kandidaten gesorteerd op geschiktheid; conflicten en ontbrekende licenties zie je meteen. "Hele periode indelen" vult lege plekken eerlijk in.</div></div>`;
+  const periodbar=`<div class="periodbar"><div class="toprow"><div style="display:flex;flex-direction:column;gap:12px"><div class="seg">${presets.map(([k,l])=>`<button data-preset="${k}">${l}</button>`).join('')}</div><div class="daterow"><span class="lab">Van</span><div class="date-field"><input type="text" id="rangeFromText" value="${nlDate(from)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeFrom" value="${from}" aria-label="Van"></div><span class="lab">Tot</span><div class="date-field"><input type="text" id="rangeToText" value="${nlDate(to)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeTo" value="${to}" aria-label="Tot"></div></div></div><div class="actions"><button class="btn primary" id="bulkRangeBtn"><i data-lucide="wand-2"></i> Hele periode indelen</button><button class="btn secondary" id="checkBtn"><i data-lucide="list-checks"></i> Controleer</button><button class="btn secondary" id="copyRangeBtn"><i data-lucide="clipboard"></i> Kopieer</button><button class="btn danger" id="clearRangeBtn"><i data-lucide="eraser"></i> Wis periode</button></div></div><div class="progress-wrap"><div class="ring" style="--p:${pct}"><div class="inner">${pct}%</div></div><div class="progress-text"><div class="big">${filled} van ${totalRoles} taken ingevuld</div><div class="small">${rangeMatches.length} wedstrijd(en) in deze periode${conflicts>0?` · <b style="color:var(--block)">${conflicts} conflict${conflicts>1?'en':''}</b>`:(rangeMatches.length?' · <b style="color:var(--good)">geen conflicten</b>':'')}</div></div><div style="flex:1"></div><button class="btn danger" id="clearAllBtn" title="Wis hele seizoensindeling"><i data-lucide="trash-2"></i> Wis alles</button></div><div class="hint">Klik op een rol om een persoon te kiezen. In het zijpaneel staan kandidaten gesorteerd op geschiktheid; conflicten en ontbrekende licenties zie je meteen. "Hele periode indelen" vult lege plekken eerlijk in.</div></div>`;
   if(!app.data.wedstrijden.length)return periodbar+`<div class="card"><p class="faint">Voeg eerst wedstrijden toe.</p></div>`;
   if(!rangeMatches.length)return periodbar+`<div class="card"><p class="faint">Geen wedstrijden in deze periode. Pas de datums aan of kies een snelknop.</p></div>`;
   const groups={};rangeMatches.forEach(m=>(groups[m.date]=groups[m.date]||[]).push(m));
@@ -958,6 +1008,7 @@ function bind(){
  if(_rtT)_rtT.onchange=()=>{const iso=parseDateInput(_rtT.value);if(iso===null){toast('Ongeldige datum — gebruik dd-mm-jjjj');render();return}if(iso)app.rangeTo=iso;render()};
  document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
  const _bulkRange=document.getElementById('bulkRangeBtn');if(_bulkRange)_bulkRange.onclick=autoAssignRange;
+ const _chk=document.getElementById('checkBtn');if(_chk)_chk.onclick=openCheckDialog;
  const _copyRange=document.getElementById('copyRangeBtn');if(_copyRange)_copyRange.onclick=()=>navigator.clipboard.writeText(copyText(matchesInRange())).then(()=>toast('Periode gekopieerd'));
  const _clearRange=document.getElementById('clearRangeBtn');if(_clearRange)_clearRange.onclick=clearRangeAssignment;
  const _cwBtn=document.getElementById('copyWeekBtn');if(_cwBtn)_cwBtn.onclick=()=>navigator.clipboard.writeText(copyText(app.data.wedstrijden.filter(w=>inWeek(w.date,app.weekOffset)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time)))).then(()=>toast('Week gekopieerd'));
