@@ -469,6 +469,11 @@ function dayLabel(dateStr){const x=new Date(dateStr+'T00:00:00');return isNaN(x)
 function matchOpen(m){return app.openMatches[m.id]!==undefined?app.openMatches[m.id]:statusFor(m)[1]!=='ok'}
 function mondayOf(dateStr){const d=new Date(dateStr+'T00:00:00');const s=new Date(d);s.setDate(s.getDate()-((d.getDay()+6)%7));return isoLocal(s)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+// Van/Tot mogen elkaar niet passeren: verzet dan de andere kant mee, anders lijkt de selector leeg
+function setRange(which,iso){
+  if(which==='from'){app.rangeFrom=iso;if(app.rangeTo&&app.rangeTo<iso)app.rangeTo=iso;}
+  else{app.rangeTo=iso;if(app.rangeFrom&&app.rangeFrom>iso)app.rangeFrom=iso;}
+}
 function nlDate(iso){if(!iso)return'';const p=String(iso).split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:iso}
 function parseDateInput(str){str=String(str||'').trim();if(!str)return'';if(/^\d{4}-\d{2}-\d{2}$/.test(str))return str;const m=str.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);if(m){let d=m[1],mo=m[2],y=m[3];if(y.length===2)y='20'+y;const iso=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;return isNaN(new Date(iso+'T00:00:00'))?null:iso}return null}
 function rangeBounds(){let from=app.rangeFrom,to=app.rangeTo;if(!from||!to){const s=weekStart(0),e=new Date(s);e.setDate(e.getDate()+6);from=from||isoLocal(s);to=to||isoLocal(e)}return{from,to}}
@@ -829,7 +834,11 @@ function scanIndeling(){
 function jumpToSlot(mid,roleKey,openPick){
   const m=app.data.wedstrijden.find(w=>w.id===mid);if(!m)return;
   try{checkDialog.close()}catch(e){}
-  if(!inRange(m.date)){app.rangeFrom=m.date;app.rangeTo=m.date;}
+  // periode oprekken tot deze datum erin valt; NIET dichtklappen naar één dag
+  if(!inRange(m.date)){
+    if(!app.rangeFrom||m.date<app.rangeFrom)app.rangeFrom=m.date;
+    if(!app.rangeTo||m.date>app.rangeTo)app.rangeTo=m.date;
+  }
   app.tab='indeling';render();
   setTimeout(()=>{
     const el=document.getElementById('m-'+mid);
@@ -1002,10 +1011,10 @@ function bind(){
  document.querySelectorAll('[data-copy-match]').forEach(b=>b.onclick=()=>{const m=app.data.wedstrijden.find(w=>w.id===b.dataset.copyMatch);navigator.clipboard.writeText(copyText([m])).then(()=>toast('Wedstrijd gekopieerd'))});
  const _bulkBtn=document.getElementById('bulkWeekBtn');if(_bulkBtn)_bulkBtn.onclick=()=>autoAssignWeek(app.weekOffset);
  const _rf=document.getElementById('rangeFrom');const _rt=document.getElementById('rangeTo');const _rfT=document.getElementById('rangeFromText');const _rtT=document.getElementById('rangeToText');
- if(_rf)_rf.onchange=()=>{if(_rf.value){app.rangeFrom=_rf.value}render()};
- if(_rt)_rt.onchange=()=>{if(_rt.value){app.rangeTo=_rt.value}render()};
- if(_rfT)_rfT.onchange=()=>{const iso=parseDateInput(_rfT.value);if(iso===null){toast('Ongeldige datum — gebruik dd-mm-jjjj');render();return}if(iso)app.rangeFrom=iso;render()};
- if(_rtT)_rtT.onchange=()=>{const iso=parseDateInput(_rtT.value);if(iso===null){toast('Ongeldige datum — gebruik dd-mm-jjjj');render();return}if(iso)app.rangeTo=iso;render()};
+ if(_rf)_rf.onchange=()=>{if(_rf.value){setRange('from',_rf.value)}render()};
+ if(_rt)_rt.onchange=()=>{if(_rt.value){setRange('to',_rt.value)}render()};
+ if(_rfT)_rfT.onchange=()=>{const iso=parseDateInput(_rfT.value);if(iso===null){toast('Ongeldige datum — gebruik dd-mm-jjjj');render();return}if(iso)setRange('from',iso);render()};
+ if(_rtT)_rtT.onchange=()=>{const iso=parseDateInput(_rtT.value);if(iso===null){toast('Ongeldige datum — gebruik dd-mm-jjjj');render();return}if(iso)setRange('to',iso);render()};
  document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
  const _bulkRange=document.getElementById('bulkRangeBtn');if(_bulkRange)_bulkRange.onclick=autoAssignRange;
  const _chk=document.getElementById('checkBtn');if(_chk)_chk.onclick=openCheckDialog;
