@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>basketbal-indeling-app</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+  :root{
+    --bg:#0d0d0d; --surface:#161616; --surface-2:#1c1c1c; --surface-3:#242424;
+    --border:#2c2c2c; --border-soft:#222;
+    --text:#f2f2f2; --muted:#b4b4b4; --faint:#7d7d7d;
+    --primary:#ff6b00; --primary-hover:#ff8230; --primary-soft:rgba(255,107,0,.13);
+    --good:#42b86a; --good-soft:rgba(66,184,106,.14);
+    --warn:#f0a93b; --warn-soft:rgba(240,169,59,.14);
+    --block:#f0584f; --block-soft:rgba(240,88,79,.14);
+    --display:'Barlow',sans-serif; --body:'Inter',sans-serif;
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px; --r-full:999px;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--body);background:var(--bg);color:var(--text);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select,textarea{font:inherit}
+  ::selection{background:var(--primary-soft)}
+  .hidden{display:none!important}
+  .faint{color:var(--faint)}
+  .small{font-size:12.5px}
+  .nowrap{white-space:nowrap}
+
+  /* ---------- shell ---------- */
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  .sidebar{border-right:1px solid var(--border);background:linear-gradient(180deg,#121212,#0c0c0c);padding:var(--sp-6) var(--sp-5);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:var(--sp-6)}
+  .brand{display:flex;align-items:center;gap:var(--sp-3)}
+  .brand .mark{width:42px;height:42px;border-radius:12px;flex:none;background:repeating-linear-gradient(48deg,var(--primary),var(--primary) 5px,#161616 5px,#161616 10px);box-shadow:0 0 0 1px var(--border)}
+  .brand .name{font-family:var(--display);font-weight:700;font-size:16px;line-height:1.2;letter-spacing:.2px}
+  .brand .sub{font-size:11px;color:var(--faint);letter-spacing:.3px;margin-top:4px;line-height:1.3}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav button{display:flex;align-items:center;gap:var(--sp-3);padding:10px 12px;border-radius:var(--r-md);color:var(--muted);font-weight:500;text-align:left;transition:color .12s;width:100%}
+  .nav button:hover{background:var(--surface-2);color:var(--text)}
+  .nav button.active{background:var(--primary-soft);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,107,0,.22)}
+  .nav button.active svg,.nav button.active i{color:var(--primary)}
+  .nav svg,.nav i{width:18px;height:18px;flex:none;color:var(--faint)}
+  .side-foot{margin-top:auto;font-size:11px;color:var(--faint);line-height:1.5}
+
+  main{min-width:0;display:flex;flex-direction:column}
+  .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-5) var(--sp-6);border-bottom:1px solid var(--border);background:rgba(13,13,13,.82);backdrop-filter:blur(10px)}
+  .topbar h1{margin:0;font-family:var(--display);font-weight:700;font-size:22px}
+  .topbar .crumb{font-size:12px;color:var(--faint);letter-spacing:.4px;text-transform:uppercase}
+  .content{padding:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-5);max-width:1180px;width:100%}
+
+  /* ---------- buttons ---------- */
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:var(--r-md);font-weight:600;font-size:13.5px;background:var(--primary);color:#1a1206;transition:all .12s;text-decoration:none}
+  .btn:hover{background:var(--primary-hover)}
+  .btn svg,.btn i,.file-label svg,.file-label i{width:16px;height:16px}
+  .btn.primary{background:var(--primary);color:#1a1206}
+  .btn.primary:hover{background:var(--primary-hover)}
+  .btn.secondary{background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+  .btn.secondary:hover{background:var(--surface-3)}
+  .btn.ghost{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+  .btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+  .btn.danger,.btn.danger-ghost{background:transparent;color:var(--block);box-shadow:inset 0 0 0 1px rgba(240,88,79,.3)}
+  .btn.danger:hover,.btn.danger-ghost:hover{background:var(--block-soft)}
+  .file-label{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:var(--r-md);font-weight:600;font-size:13.5px;background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--border);cursor:pointer;transition:all .12s}
+  .file-label:hover{background:var(--surface-3)}
+  .icon-btn{width:32px;height:32px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--faint);transition:all .12s;flex:none}
+  .icon-btn:hover{background:var(--surface-2);color:var(--text)}
+  .icon-btn svg,.icon-btn i{width:16px;height:16px}
+  .icon-btn.danger:hover{background:var(--block-soft);color:var(--block)}
+  .toolbar,.row{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+
+  /* ---------- page chrome ---------- */
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap}
+  .page-head .lead{max-width:58ch}
+  .page-head h2{margin:0 0 4px;font-family:var(--display);font-weight:700;font-size:19px}
+  .page-head p{margin:0;font-size:13px;color:var(--faint);line-height:1.5}
+  .head-tools{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-5)}
+  .card.tight{padding:0;overflow:hidden}
+  .section-h{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap}
+  .section-h h3{margin:0;font-family:var(--display);font-weight:600;font-size:15px}
+  .hint{font-size:12.5px;color:var(--faint);line-height:1.5;max-width:70ch}
+
+  /* ---------- segmented ---------- */
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-full);padding:3px;flex-wrap:wrap}
+  .seg button{padding:7px 14px;border-radius:var(--r-full);font-size:13px;font-weight:500;color:var(--muted);transition:all .12s}
+  .seg button.active{background:var(--primary);color:#1a1206;font-weight:600}
+  .seg button:not(.active):hover{color:var(--text)}
+
+  /* ---------- badges ---------- */
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-full);font-size:12px;font-weight:600}
+  .badge .d{width:6px;height:6px;border-radius:50%}
+  .badge.ok{background:var(--good-soft);color:var(--good)} .badge.ok .d{background:var(--good)}
+  .badge.warn{background:var(--warn-soft);color:var(--warn)} .badge.warn .d{background:var(--warn)}
+  .badge.open,.badge.neutral{background:var(--surface-3);color:var(--muted)} .badge.open .d{background:var(--faint)}
+  .badge.block,.badge.err{background:var(--block-soft);color:var(--block)} .badge.block .d{background:var(--block)}
+  .lic-badge{font-size:11px;font-weight:700;letter-spacing:.3px;padding:2px 8px;border-radius:6px;background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+  .lic-badge.bs3{background:var(--primary-soft);color:var(--primary);box-shadow:inset 0 0 0 1px rgba(255,107,0,.3)}
+  .lic-badge.none{color:var(--faint)}
+
+  /* ---------- avatars ---------- */
+  .avatar{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:13px;background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+  .avatar.sm{width:30px;height:30px;font-size:12px}
+
+  /* ---------- tables ---------- */
+  .tbl-wrap{overflow-x:auto}
+  table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:720px}
+  table.tbl th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);padding:13px 16px;border-bottom:1px solid var(--border)}
+  table.tbl td{padding:11px 16px;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+  table.tbl tr:last-child td{border-bottom:none}
+  table.tbl tbody tr{transition:background .1s}
+  table.tbl tbody tr:hover{background:var(--surface-2)}
+  .cell-name{display:flex;align-items:center;gap:11px}
+  .cell-name .nm{font-weight:600;white-space:nowrap}
+  .row-acts{display:flex;gap:4px;justify-content:flex-end}
+  .mono-faint{color:var(--faint);font-variant-numeric:tabular-nums}
+
+  /* ---------- form controls ---------- */
+  .ctrl,input[type=text],input[type=date],input[type=time],input[type=search],input[type=number],input[type=password],select,textarea{display:block;width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;color:var(--text);outline:none;transition:border-color .12s}
+  .ctrl:focus,input:focus,select:focus,textarea:focus{border-color:var(--primary)}
+  input::placeholder{color:var(--faint)}
+  textarea{min-height:84px}
+  select,select.ctrl{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%237d7d7d' stroke-width='2'><path d='M2 4l4 4 4-4'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
+  select.mini{padding:6px 26px 6px 10px;font-size:12.5px;border-radius:var(--r-sm)}
+  .field label,.form-grid label{display:block;font-size:11px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--sp-4)}
+  .searchbar{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;max-width:360px;flex:1}
+  .searchbar:focus-within{border-color:var(--primary)}
+  .searchbar svg,.searchbar i{width:16px;height:16px;color:var(--faint);flex:none}
+  .searchbar input{flex:1;background:none;border:none;color:var(--text);outline:none;padding:0}
+  .date-field{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:4px 6px 4px 12px}
+  .date-field:focus-within{border-color:var(--primary)}
+  .date-field input[type=text]{width:104px;border:none;background:none;padding:6px 0}
+  .date-field input[type=date]{width:34px;border:none;background:none;padding:6px 2px;color:transparent}
+  .date-field input[type=date]::-webkit-datetime-edit{display:none}
+  .date-field input[type=date]::-webkit-calendar-picker-indicator{opacity:.7;cursor:pointer;filter:invert(1)}
+
+  /* ---------- dashboard ---------- */
+  .stat-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:var(--sp-4)}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-5);display:flex;flex-direction:column;gap:6px}
+  .stat .k{font-size:12.5px;color:var(--faint);font-weight:500}
+  .stat .v{font-family:var(--display);font-weight:800;font-size:40px;line-height:1}
+  .stat .sub{font-size:12px;color:var(--faint)}
+  .stat.primary{background:linear-gradient(150deg,rgba(255,107,0,.16),rgba(255,107,0,.04));border-color:rgba(255,107,0,.32);justify-content:space-between}
+  .stat.primary .v{color:var(--primary);font-size:46px}
+  .stat.primary .btn{align-self:flex-start;margin-top:6px}
+  .mini-list{display:flex;flex-direction:column}
+  .mini-row{display:flex;align-items:center;gap:var(--sp-3);padding:12px 0;border-bottom:1px solid var(--border-soft)}
+  .mini-row:last-child{border-bottom:none}
+  .mini-row .tm{font-family:var(--display);font-weight:700;font-size:14px;min-width:48px;color:var(--muted)}
+  .mini-row .mt{flex:1;font-weight:600;font-size:13.5px}
+  .mini-row .mt span{color:var(--faint);font-weight:400;margin:0 6px}
+
+  /* ---------- period bar ---------- */
+  .periodbar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-4)}
+  .periodbar .toprow{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap}
+  .periodbar .daterow{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+  .periodbar .daterow .lab{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--faint)}
+  .progress-wrap{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap}
+  .ring{--p:0;width:54px;height:54px;border-radius:50%;flex:none;background:conic-gradient(var(--primary) calc(var(--p)*1%),var(--surface-3) 0);display:grid;place-items:center}
+  .ring .inner{width:42px;height:42px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:14px}
+  .progress-text .big{font-family:var(--display);font-weight:700;font-size:17px}
+  .progress-text .small{font-size:12.5px;color:var(--faint)}
+  .actions{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+
+  /* ---------- day heading ---------- */
+  .day-head{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-2)}
+  .day-head .dot{width:9px;height:9px;border-radius:50%;background:var(--primary)}
+  .day-head h2{margin:0;font-family:var(--display);font-weight:600;font-size:16px;text-transform:capitalize}
+  .day-head .count{font-size:12px;color:var(--faint)}
+  .day-head .line{flex:1;height:1px;background:var(--border-soft)}
+
+  /* ---------- match card ---------- */
+  .match{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;scroll-margin-top:88px}
+  .match.flash{box-shadow:0 0 0 2px var(--primary);transition:box-shadow .25s}
+  .match-head{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--border-soft)}
+  .time-chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;padding:7px 10px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--border)}
+  .time-chip .t{font-family:var(--display);font-weight:700;font-size:17px;line-height:1}
+  .time-chip .d{font-size:10.5px;color:var(--faint);margin-top:3px}
+  .match-teams{min-width:0;flex:1}
+  .match-teams .vs{font-family:var(--display);font-weight:600;font-size:15px;line-height:1.3}
+  .match-teams .vs .home{color:var(--text)} .match-teams .vs .sep{color:var(--faint);font-weight:400;margin:0 7px} .match-teams .vs .away{color:var(--muted)}
+  .match-head .grow{flex:1}
+  .status{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:var(--r-full);font-size:12px;font-weight:600}
+  .status .d{width:7px;height:7px;border-radius:50%}
+  .status.ok{background:var(--good-soft);color:var(--good)} .status.ok .d{background:var(--good)}
+  .status.warn{background:var(--warn-soft);color:var(--warn)} .status.warn .d{background:var(--warn)}
+  .status.open{background:var(--surface-3);color:var(--muted)} .status.open .d{background:var(--faint)}
+  .status.block{background:var(--block-soft);color:var(--block)} .status.block .d{background:var(--block)}
+  .head-actions{display:flex;align-items:center;gap:4px}
+
+  /* ---------- role slots ---------- */
+  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:var(--sp-3);padding:var(--sp-4) var(--sp-5) var(--sp-5)}
+  .slot{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+  .slot-label{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .slot-label .role{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--faint)}
+  .lic-tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:var(--r-full);background:var(--surface-3);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border);cursor:pointer}
+  .lic-sel{width:auto;min-width:0;padding:2px 22px 2px 9px;font-size:10px;font-weight:700;letter-spacing:.3px;border-radius:var(--r-full);background-color:var(--surface-3);color:var(--muted);border:1px solid var(--border);background-position:right 6px center;cursor:pointer}
+  .lic-sel.set{background-color:var(--primary-soft);color:var(--primary);border-color:rgba(255,107,0,.35)}
+  .lic-tag:hover{color:var(--text)}
+  .lic-tag.set{background:var(--primary-soft);color:var(--primary);box-shadow:inset 0 0 0 1px rgba(255,107,0,.3)}
+  .chip{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border-radius:var(--r-sm);padding:7px;transition:background .12s}
+  .chip:hover{background:var(--surface-3)}
+  .chip.filled .avatar{background:#2a2a2a;color:var(--text)}
+  .chip-info{min-width:0;flex:1}
+  .chip-info .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .chip-info .mt{font-size:11.5px;color:var(--faint);display:block}
+  .chip .x{opacity:0;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--faint);flex:none}
+  .chip:hover .x{opacity:1}
+  .chip .x:hover{background:var(--surface);color:var(--block)}
+  .chip .x svg,.chip .x i{width:14px;height:14px}
+  .chip.empty{border:1.5px dashed var(--border);background:transparent;color:var(--faint);justify-content:center;padding:9px;font-weight:600;font-size:13px}
+  .chip.empty:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+  .chip.empty svg,.chip.empty i{width:16px;height:16px}
+  .slot.has-block{box-shadow:inset 0 0 0 1.5px rgba(240,88,79,.55)}
+  .slot.has-warn{box-shadow:inset 0 0 0 1.5px rgba(240,169,59,.4)}
+  .slot-warns{display:flex;flex-wrap:wrap;gap:5px}
+  .wbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:var(--r-full)}
+  .wbadge svg,.wbadge i{width:12px;height:12px}
+  .wbadge.block{background:var(--block-soft);color:var(--block)}
+  .wbadge.warn{background:var(--warn-soft);color:var(--warn)}
+  .slot24{min-height:84px;justify-content:center}
+
+  /* ---------- picker slide-over ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .picker{position:fixed;top:0;right:0;height:100vh;width:430px;max-width:92vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:-24px 0 60px rgba(0,0,0,.5);transform:translateX(100%);transition:transform .24s cubic-bezier(.22,1,.36,1);z-index:50;display:flex;flex-direction:column}
+  .picker.show{transform:translateX(0)}
+  .picker-head{padding:var(--sp-5) var(--sp-5) var(--sp-4);border-bottom:1px solid var(--border-soft);position:relative}
+  .picker-head .ctx{font-size:12px;color:var(--faint);letter-spacing:.3px}
+  .picker-head .ttl{font-family:var(--display);font-weight:700;font-size:19px;margin-top:3px;display:flex;align-items:center;gap:9px}
+  .picker-head .ttl .req{font-size:11px;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:var(--r-full);background:var(--primary-soft);color:var(--primary)}
+  .picker-head .close{position:absolute;top:18px;right:18px;width:32px;height:32px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--faint)}
+  .picker-head .close:hover{background:var(--surface-2);color:var(--text)}
+  .picker .search{margin-top:var(--sp-4);display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px}
+  .picker .search:focus-within{border-color:var(--primary)}
+  .picker .search svg,.picker .search i{width:16px;height:16px;color:var(--faint);flex:none}
+  .picker .search input{flex:1;background:none;border:none;color:var(--text);outline:none;padding:0}
+  .picker-list{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-3) var(--sp-5)}
+  .grp-label{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);padding:var(--sp-3) 10px 7px}
+  .cand{display:flex;align-items:center;gap:11px;padding:10px;border-radius:var(--r-md);width:100%;text-align:left;transition:background .12s}
+  .cand:hover{background:var(--surface-2)}
+  .cand.rec{background:var(--primary-soft);box-shadow:inset 0 0 0 1px rgba(255,107,0,.25)}
+  .cand.rec:hover{background:rgba(255,107,0,.18)}
+  .cand.current{box-shadow:inset 0 0 0 1px var(--primary)}
+  .cand .ci{min-width:0;flex:1}
+  .cand .ci .nm{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+  .cand .ci .rec-tag{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--primary)}
+  .cand .ci .mt{font-size:11.5px;color:var(--faint);margin-top:1px;display:block}
+  .cand .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .tag{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:var(--r-full)}
+  .tag.good{background:var(--good-soft);color:var(--good)}
+  .tag.warn{background:var(--warn-soft);color:var(--warn)}
+  .tag.block{background:var(--block-soft);color:var(--block)}
+  .cand .count{flex:none;text-align:center;font-size:11px;color:var(--faint)}
+  .cand .count b{display:block;font-family:var(--display);font-size:16px;color:var(--muted);font-weight:700}
+  .empty-list{padding:40px 20px;text-align:center;color:var(--faint);font-size:13px}
+  .picker-foot{padding:var(--sp-3) var(--sp-5);border-top:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center}
+  .clear-link{font-size:13px;color:var(--block);font-weight:600;display:flex;align-items:center;gap:6px}
+  .clear-link svg,.clear-link i{width:14px;height:14px}
+  .clear-link:hover{text-decoration:underline}
+
+  /* ---------- history ---------- */
+  .legend{display:flex;align-items:center;gap:var(--sp-4);font-size:12px;color:var(--muted)}
+  .legend .it{display:inline-flex;align-items:center;gap:7px}
+  .legend .sw{width:11px;height:11px;border-radius:3px}
+  .legend .sw.ref{background:var(--primary)} .legend .sw.jury{background:#cfcfcf}
+  .hist{display:flex;flex-direction:column;gap:2px}
+  .hist-row{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 116px;gap:var(--sp-3);align-items:center;padding:9px 8px;border-radius:var(--r-sm)}
+  .hist-row:hover{background:var(--surface-2)}
+  .hist-row .rank{font-family:var(--display);font-weight:700;color:var(--faint);text-align:center}
+  .hist-row .who{display:flex;align-items:center;gap:10px;min-width:0}
+  .hist-row .who .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hist-row .who .tm{font-size:11.5px;color:var(--faint)}
+  .hbar{display:flex;height:16px;border-radius:var(--r-full);overflow:hidden;background:var(--surface-3)}
+  .hseg{height:100%}
+  .hseg.ref{background:var(--primary)} .hseg.jury{background:#cfcfcf}
+  .hist-row .tot{text-align:right;font-family:var(--display);font-weight:700;font-size:16px}
+  .hist-row .tot small{white-space:nowrap}
+  .hist-row .tot small{display:block;font-family:var(--body);font-weight:400;font-size:10.5px;color:var(--faint)}
+
+  /* ---------- dialog ---------- */
+  dialog{border:none;padding:0;background:transparent;max-width:min(820px,96vw);color:var(--text)}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-6)}
+  .modal h3{margin:0 0 var(--sp-4);font-family:var(--display);font-weight:700;font-size:19px}
+
+  /* ---------- toast ---------- */
+  .toasts,.toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:80;align-items:center}
+  .toast{background:var(--surface-3);border:1px solid var(--border);border-radius:var(--r-full);padding:11px 18px;font-size:13.5px;font-weight:500;box-shadow:0 12px 30px rgba(0,0,0,.45);display:flex;align-items:center;gap:12px;animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+  @media(max-width:880px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:static;height:auto;flex-direction:row;align-items:center;flex-wrap:wrap}
+    .nav{flex-direction:row;flex-wrap:wrap}
+    .side-foot{display:none}
+    .stat-grid{grid-template-columns:1fr}
+  }
+
+  .tbl select.mini,.tbl input.mini{padding:6px 10px;font-size:12.5px;border-radius:var(--r-sm);width:auto;min-width:120px}
+  .tbl input.mini{min-width:130px}
+
+  /* ---------- spelers: filterbalk + responsive kaarten ---------- */
+  .filterbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .filterbar .searchbar{flex:1 1 200px;max-width:none;margin:0}
+  .filterbar select{width:auto;min-width:140px;flex:0 1 170px}
+  .slist{display:flex;flex-direction:column}
+  .slist-head{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 108px 100px 132px minmax(0,1.1fr) 60px;gap:10px;align-items:center;padding:4px 12px 9px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--faint)}
+  .srow{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 108px 100px 132px minmax(0,1.1fr) 60px;gap:10px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--border-soft)}
+  .srow:last-child{border-bottom:none}
+  .srow:hover{background:var(--surface-2)}
+  .srow .cell-name{min-width:0}
+  .srow .cell-name .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13.5px}
+  .srow .sc-team{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px}
+  .srow .mini{width:100%;min-width:0}
+  .srow .row-acts{justify-content:flex-end}
+  .srow .cell-name{cursor:pointer}
+  tr.clickrow{cursor:pointer}
+  .pl-head,.pl-row{grid-template-columns:minmax(0,1.6fr) minmax(0,1.3fr) 110px 110px 60px!important}
+  .pl-row{cursor:pointer}
+  .afw-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+  .afw-row input[type=date]{flex:1;min-width:0}
+  .modal .cand{color:var(--text)}
+  .modal .cand .nm{display:block;color:var(--text)}
+  .chip-input{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:7px 8px;min-height:42px;cursor:text}
+  .chip-input:focus-within{border-color:var(--primary)}
+  .tchip{display:inline-flex;align-items:center;gap:5px;background:var(--primary-soft);color:var(--primary);border:1px solid rgba(255,107,0,.3);border-radius:var(--r-full);padding:3px 5px 3px 10px;font-size:12.5px;font-weight:600;white-space:nowrap}
+  .tchip.unknown{background:var(--warn-soft);color:var(--warn);border-color:var(--warn);border-style:dashed}
+  .tchip.coach{background:var(--surface-3);color:var(--muted);border-color:var(--border);border-style:solid}
+  .tchip-lbl{cursor:pointer;background:none;border:none;color:inherit;font:inherit;font-weight:600;padding:0}
+  .tchip-x{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;color:inherit;font-size:15px;line-height:1;flex:none}
+  .tchip-x:hover{background:rgba(0,0,0,.18)}
+  .chip-input .tchip-inp{flex:1;min-width:90px;width:auto;border:none;background:none;outline:none;color:var(--text);padding:4px 2px;font-size:13px}
+  .mini-row[data-open-match]{cursor:pointer;border-radius:var(--r-sm);transition:background .1s;margin:0 -8px;padding-left:8px;padding-right:8px}
+  .mini-row[data-open-match]:hover{background:var(--surface-2)}
+  @media(max-width:760px){
+    .slist-head{display:none}
+    .srow{grid-template-columns:1fr!important;gap:0;padding:0;cursor:pointer}
+    .srow .sc-team,.srow select.mini,.srow input.mini,.srow .row-acts{display:none}
+    .srow .cell-name{padding:13px 14px}
+    .srow .cell-name::after{content:'›';margin-left:auto;color:var(--faint);font-size:20px;line-height:1}
+  }
+
+  /* ---------- wachtwoordscherm ---------- */
+  .auth-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:var(--sp-4)}
+  .auth-box{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-8) var(--sp-6);text-align:center;display:flex;flex-direction:column;gap:var(--sp-3)}
+  .auth-box .auth-mark{width:48px;height:48px;border-radius:12px;margin:0 auto var(--sp-2);background:repeating-linear-gradient(48deg,var(--primary),var(--primary) 5px,#161616 5px,#161616 10px);box-shadow:0 0 0 1px var(--border)}
+  .auth-box h1{margin:0;font-family:var(--display);font-weight:700;font-size:20px}
+  .auth-box p{margin:0 0 var(--sp-2);font-size:13px;color:var(--faint);line-height:1.5}
+  .auth-box input{text-align:center}
+  .auth-box .btn{justify-content:center}
+  .auth-error{color:var(--block);font-size:13px;font-weight:600}
+
+  /* ---------- help-knop ---------- */
+  .help-btn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:18px;line-height:1;color:var(--primary);background:var(--primary-soft);box-shadow:inset 0 0 0 1px rgba(255,107,0,.3);text-decoration:none;flex:none;transition:all .12s}
+  .help-btn:hover{background:var(--primary);color:#1a1206}
+</style>
+</head>
+<body>
+
+<div id="authGate" class="auth-gate">
+  <div class="auth-box">
+    <div class="auth-mark"></div>
+    <h1>Basketbal Indeling</h1>
+    <p>Voer het wachtwoord in om verder te gaan.</p>
+    <input id="authInput" type="password" placeholder="Wachtwoord" autocomplete="current-password">
+    <div id="authError" class="auth-error" style="display:none">Onjuist wachtwoord</div>
+    <button id="authBtn" class="btn primary">Ontgrendelen</button>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="mark"></div><div><div class="name">Basketbal Indeling</div><div class="sub" id="brandSub">Wedstrijdtaken</div></div></div>
+    <nav id="nav" class="nav"></nav>
+    <div class="side-foot">Wedstrijdtaken eerlijk verdeeld<br>over je vereniging</div>
+  </aside>
+  <main>
+    <div class="topbar"><div><div class="crumb" id="topCrumb"></div><h1 id="pageTitle">Dashboard</h1></div><a class="help-btn" href="Handleiding-Taakplanner.pdf" download title="Handleiding downloaden">?</a></div>
+    <div id="view" class="content"></div>
+  </main>
+</div>
+<div id="pickerScrim" class="scrim"></div>
+<aside id="picker" class="picker"></aside>
+<div id="toasts" class="toast-wrap"></div>
+<dialog id="matchDialog"></dialog>
+<dialog id="playerDialog"></dialog>
+<dialog id="mappingDialog"></dialog>
+<dialog id="pouleDialog"></dialog>
+<script>
+const KEYS={wedstrijden:'bball_wedstrijden',spelers:'bball_spelers',indeling:'bball_indeling',instellingen:'bball_instellingen',tellingen:'bball_tellingen_huidig',archief:'bball_tellingen_archief',mappings:'bball_mappings',poule:'bball_poule'};
+const tabs=[['dashboard','Dashboard','layout-dashboard'],['wedstrijden','Wedstrijden','calendar-days'],['spelers','Spelers','users'],['poule','Poule','flag'],['indeling','Indeling','clipboard-list'],['geschiedenis','Geschiedenis','history'],['instellingen','Instellingen','settings']];
+const app={tab:(tabs.some(t=>t[0]===localStorage.getItem('bball_tab'))?localStorage.getItem('bball_tab'):'dashboard'),weekOffset:0,selectedMatchId:null,pendingImport:null,historySort:'total',pdfTeam:'',playerFilter:'',openMatches:{},openPlayers:{},rangeFrom:null,rangeTo:null,data:loadAll()};
+(function(){const s=weekStart(0),e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)})();
+function uid(){return Math.random().toString(36).slice(2,10)}
+function defaults(){return{wedstrijden:[],spelers:[],indeling:{},instellingen:{vereniging:'Mijn Basketbalvereniging',seizoen:'2025-2026'},tellingen:{},archief:{},mappings:{wedstrijden:{date:'datum',time:'tijd',homeTeam:'thuisteam',awayTeam:'tegenstander'},spelers:{name:'naam',team:'team',role:'rol',license:'licentie'}},poule:[]}}
+function loadAll(){const d=defaults(),x={};Object.entries(KEYS).forEach(([k,v])=>{try{x[k]=JSON.parse(localStorage.getItem(v))}catch{x[k]=null}});return{wedstrijden:x.wedstrijden||d.wedstrijden,spelers:x.spelers||d.spelers,indeling:x.indeling||d.indeling,instellingen:x.instellingen||d.instellingen,tellingen:x.tellingen||d.tellingen,archief:x.archief||d.archief,mappings:x.mappings||d.mappings,poule:x.poule||d.poule}}
+function saveAll(){Object.entries(KEYS).forEach(([k,v])=>localStorage.setItem(v,JSON.stringify(app.data[k])));pushToCloud();}
+
+/* ===== Supabase: gedeelde database ===== */
+const SUPABASE_URL='https://ezzynaqeplbxrdvebphx.supabase.co';
+const SUPABASE_KEY='sb_publishable_kSW3nWA4nO2y2FlPY7Mupg_ZNqhQ-kT';
+let sb=null;
+try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);}catch(e){console.warn('Supabase init mislukt',e);}
+let _cloudReady=false,_pushTimer=null,_lastPushed={};
+function _isEmptyVal(v){if(v==null)return true;if(Array.isArray(v))return v.length===0;if(typeof v==='object')return Object.keys(v).length===0;return false;}
+function pushToCloud(){if(!sb||!_cloudReady)return;clearTimeout(_pushTimer);_pushTimer=setTimeout(_doPush,400);}
+async function _doPush(){
+  if(!sb)return;const stamp=new Date().toISOString();
+  // duw alleen onderdelen die lokaal echt gewijzigd zijn (minder kans op botsing met andere bewerkers)
+  const rows=[];Object.keys(KEYS).forEach(k=>{const s=JSON.stringify(app.data[k]??null);if(_lastPushed[k]!==s)rows.push({key:k,data:app.data[k]??null,updated_at:stamp,_s:s});});
+  if(!rows.length)return;
+  try{const {error}=await sb.from('app_state').upsert(rows.map(({_s,...r})=>r),{onConflict:'key'});if(error){console.warn('Cloud-opslag mislukt',error);}else{rows.forEach(r=>_lastPushed[r.key]=r._s);}}catch(e){console.warn('Cloud-opslag fout',e);}
+}
+async function syncFromCloud(forceRender){
+  if(!sb)return false;
+  let res;try{res=await sb.from('app_state').select('key,data');}catch(e){console.warn('Cloud-laden fout',e);return false;}
+  if(res.error){console.warn('Cloud-laden mislukt',res.error);return false;}
+  const rows=res.data||[];
+  if(rows.length===0){_cloudReady=true;await _doPush();return true;} // lege database -> bestaande lokale data uploaden
+  let changed=false,heal=false;
+  rows.forEach(r=>{
+    if(!(r.key in KEYS))return;
+    const cloudVal=r.data,incoming=JSON.stringify(cloudVal);
+    // Veiligheid: een lege cloud-waarde mag een gevulde lokale waarde NOOIT overschrijven (voorkomt dataverlies)
+    if(_isEmptyVal(cloudVal)&&!_isEmptyVal(app.data[r.key])){heal=true;return;}
+    if(JSON.stringify(app.data[r.key])!==incoming){app.data[r.key]=cloudVal;localStorage.setItem(KEYS[r.key],incoming);changed=true;}
+    _lastPushed[r.key]=incoming; // cloud is nu de bekende stand voor deze key
+  });
+  _cloudReady=true;
+  if(changed||forceRender){updateCounts();render();}
+  if(heal)_doPush(); // lokale (gevulde) data terugduwen zodat de cloud herstelt
+  return true;
+}
+function initCloud(){
+  if(!sb){toast('Geen database-verbinding — offline modus');return;}
+  syncFromCloud(true).then(ok=>{
+    if(ok){toast('Verbonden met gedeelde database');
+      try{sb.channel('app_state_changes').on('postgres_changes',{event:'*',schema:'public',table:'app_state'},()=>syncFromCloud(false)).subscribe();}catch(e){console.warn('Realtime mislukt',e);}
+    }else{toast('Geen database-verbinding — offline modus');}
+  });
+}
+function toast(msg){const el=document.createElement('div');el.className='toast';el.textContent=msg;toasts.appendChild(el);setTimeout(()=>el.remove(),2800)}
+function esc(s=''){return String(s).replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+function fmtDate(d){const x=new Date(d+'T00:00:00');return isNaN(x)?d:x.toLocaleDateString('nl-NL',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}
+function weekStart(offset=0){const n=new Date();const day=(n.getDay()+6)%7;n.setDate(n.getDate()-day+offset*7);n.setHours(0,0,0,0);return n}
+function inWeek(dateStr,offset){const d=new Date(dateStr+'T00:00:00');const s=weekStart(offset),e=new Date(s);e.setDate(e.getDate()+7);return d>=s&&d<e}
+function weekOffsetFor(dateStr){const d=new Date(dateStr+'T00:00:00');if(isNaN(d))return 0;const base=weekStart(0);return Math.round((d-base)/(7*24*60*60*1000))}
+function dayLabel(dateStr){const x=new Date(dateStr+'T00:00:00');return isNaN(x)?dateStr:x.toLocaleDateString('nl-NL',{weekday:'long',day:'2-digit',month:'long'})}
+function matchOpen(m){return app.openMatches[m.id]!==undefined?app.openMatches[m.id]:statusFor(m)[1]!=='ok'}
+function mondayOf(dateStr){const d=new Date(dateStr+'T00:00:00');const s=new Date(d);s.setDate(s.getDate()-((d.getDay()+6)%7));return isoLocal(s)}
+function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function nlDate(iso){if(!iso)return'';const p=String(iso).split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:iso}
+function parseDateInput(str){str=String(str||'').trim();if(!str)return'';if(/^\d{4}-\d{2}-\d{2}$/.test(str))return str;const m=str.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);if(m){let d=m[1],mo=m[2],y=m[3];if(y.length===2)y='20'+y;const iso=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;return isNaN(new Date(iso+'T00:00:00'))?null:iso}return null}
+function rangeBounds(){let from=app.rangeFrom,to=app.rangeTo;if(!from||!to){const s=weekStart(0),e=new Date(s);e.setDate(e.getDate()+6);from=from||isoLocal(s);to=to||isoLocal(e)}return{from,to}}
+function inRange(dateStr){const {from,to}=rangeBounds();return dateStr>=from&&dateStr<=to}
+function matchesInRange(){return app.data.wedstrijden.filter(w=>!w.away&&inRange(w.date)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time))}
+function applyPreset(p){const s=weekStart(0);if(p==='week'){const e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}else if(p==='2w'){const e=new Date(s);e.setDate(e.getDate()+13);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}else if(p==='4w'){const e=new Date(s);e.setDate(e.getDate()+27);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}else if(p==='all'){const ds=app.data.wedstrijden.map(w=>w.date).filter(Boolean).sort();if(ds.length){app.rangeFrom=ds[0];app.rangeTo=ds[ds.length-1]}}render()}
+function licRank(l){return l==='BS3'?5:l==='BS2'?4:l==='Ervaren'?3:l==='Gevorderd'?2:l==='Beginner'?1:0}
+function mapLicense(raw){const v=String(raw||'').toLowerCase().replace(/\s+/g,' ').trim();if(!v)return'';if(v==='bs3')return'BS3';if(v==='bs2')return'BS2';const bs3=['basketbalscheidsrechter 4 in opleiding','basketbalscheidsrechter 3 in opleiding','basketbalscheidsrechter 3','scheidsrechter e-diploma'];const bs2=['basketbalscheidsrechter 2','scheidsrechter f-diploma'];if(bs3.includes(v))return'BS3';if(bs2.includes(v))return'BS2';return''}
+function licenseMeets(playerLic,req){return licRank(playerLic)>=licRank(req)}
+function refLicReq(match,roleKey){return (match.refLic&&match.refLic[roleKey])||''}
+function toMin(t){const s=String(t||'').trim().replace(/[.u]/g,':');const m=s.split(':');return (parseInt(m[0],10)||0)*60+(parseInt(m[1],10)||0)}
+function normTeam(t){return String(t||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
+function sameTeam(a,b){const x=normTeam(a),y=normTeam(b);if(!x||!y)return false;if(x===y)return true;if(x.length>=3&&y.length>=3)return x.endsWith(y)||y.endsWith(x);return false}
+function dayTimes(date){return [...new Set(app.data.wedstrijden.filter(w=>w.date===date).map(w=>toMin(w.time)))].sort((a,b)=>a-b)}
+function teamSlotDistance(team,match){if(!normTeam(team))return null;const times=dayTimes(match.date);const idx=times.indexOf(toMin(match.time));let best=null;app.data.wedstrijden.forEach(w=>{if(w.date!==match.date||w.away||!sameTeam(w.homeTeam,team))return;const wi=times.indexOf(toMin(w.time));if(wi<0)return;const d=Math.abs(wi-idx);if(d===0)return;if(best===null||d<best)best=d});return best}
+function rolesFor(match){const roles=[{key:'scheidsrechter1',label:'Scheidsrechter 1',type:'scheidsrechter'},{key:'scheidsrechter2',label:'Scheidsrechter 2',type:'scheidsrechter'},{key:'jury1',label:'Timer',type:'jury'},{key:'jury2',label:'Scorer',type:'jury'}];if(match.extra24)roles.push({key:'jury3',label:'24-seconde operator',type:'jury'});return roles}
+function assignmentFor(id){return app.data.indeling[id]||{}}
+function statusFor(match){const roles=rolesFor(match),asg=assignmentFor(match.id),filled=roles.filter(r=>asg[r.key]).length;if(!filled)return['Niet ingedeeld','neutral'];if(filled===roles.length)return['Volledig','ok'];return[filled+'/'+roles.length+' ingevuld','warn']}
+function player(id){return app.data.spelers.find(p=>p.id===id)}
+function pouleMember(id){return (app.data.poule||[]).find(p=>p.id===id)}
+function person(id){return player(id)||pouleMember(id)}
+function isPoule(id){return !!pouleMember(id)}
+function fullName(p){if(!p)return 'Onbekend';const parts=[p.voornaam,p.tussenvoegsel,p.achternaam].map(x=>String(x||'').trim()).filter(Boolean);return parts.length?parts.join(' '):(p.name||'Onbekend')}
+function splitName(full){full=String(full||'').trim().replace(/\s+/g,' ');if(!full)return{voornaam:'',tussenvoegsel:'',achternaam:''};const parts=full.split(' ');if(parts.length===1)return{voornaam:parts[0],tussenvoegsel:'',achternaam:''};const tuss=['de','van','der','den','ten','ter','het','op',"'t"];const voornaam=parts.shift();const tv=[];while(parts.length>1&&tuss.includes(parts[0].toLowerCase())){tv.push(parts.shift())}return{voornaam,tussenvoegsel:tv.join(' '),achternaam:parts.join(' ')}}
+function playerName(id){return fullName(person(id))}
+function bindEnterSave(dlg,btnId){const f=dlg.querySelector('form');if(!f)return;f.onkeydown=e=>{if(e.key==='Enter'&&e.target&&e.target.tagName!=='TEXTAREA'&&!(e.target.tagName==='BUTTON')){e.preventDefault();const b=document.getElementById(btnId);if(b)b.click()}}}
+function availabilityInfo(p){return p.status==='available'?['Beschikbaar','ok']:p.status==='inactive'?['Inactief','neutral']:['Niet beschikbaar','warn']}
+// Beschikbaarheid per speler. Is de lijst gevuld, dan is de speler ALLEEN op die momenten inzetbaar
+// en vervalt de eis dat zijn eigen team die dag thuis moet spelen — hij heeft immers zelf gezegd dat hij er is.
+function availabilityFor(p){return (p&&Array.isArray(p.beschikbaar))?p.beschikbaar:[]}
+// Starttijd van de eigen wedstrijd op die dag (thuis of uit), in minuten; null als er geen is
+function ownMatchMin(p,date){const teams=playerTeams(p);let best=null;app.data.wedstrijden.forEach(w=>{if(w.date!==date)return;if(!teams.some(t=>(!w.away&&sameTeam(w.homeTeam,t))||(w.away&&sameTeam(w.awayTeam,t))))return;const m=toMin(w.time);if(best===null||m<best)best=m});return best}
+function notAvailable(p,match){
+  const list=availabilityFor(p);if(!list.length)return false;
+  const slots=list.filter(s=>s&&s.date===match.date);
+  if(!slots.length)return true;
+  return !slots.some(s=>{
+    if(s.time)return toMin(s.time)===toMin(match.time);
+    const own=ownMatchMin(p,match.date);
+    if(own===null)return true;
+    if(s.rel==='na')return toMin(match.time)>own;
+    if(s.rel==='voor')return toMin(match.time)<own;
+    return true;
+  });
+}
+// "2026-09-12 na" / "2026-10-10 18:15" / "2026-11-28 voor of na"
+function parseAvailability(txt){return String(txt||'').split(/\n+/).map(l=>l.trim()).filter(Boolean).map(l=>{
+  const m=l.match(/^(\d{4}-\d{2}-\d{2})\s*(.*)$/);if(!m)return null;
+  const rest=(m[2]||'').toLowerCase().trim();
+  const t=rest.match(/^(\d{1,2})[:.u](\d{2})$/);
+  if(t)return{date:m[1],time:String(t[1]).padStart(2,'0')+':'+t[2]};
+  if(/^voor\s*of\s*na/.test(rest)||/^beide/.test(rest))return{date:m[1]};
+  if(/^na\b/.test(rest))return{date:m[1],rel:'na'};
+  if(/^voor\b/.test(rest))return{date:m[1],rel:'voor'};
+  return{date:m[1]};
+}).filter(Boolean)}
+function availabilityText(p){return availabilityFor(p).map(s=>s.date+' '+(s.time?s.time:(s.rel==='na'?'na':s.rel==='voor'?'voor':'voor of na'))).join('\n')}
+// Maximum aantal taken per speler per seizoen (0 = geen maximum)
+function maxTasks(){const v=parseInt(app.data.instellingen.maxTaken,10);return isNaN(v)?5:Math.max(0,v)}
+// Aantal taken van een persoon over het hele seizoen; tempIndeling telt mee tijdens een bulk-run
+function seasonTaskCount(pid,tempIndeling){let n=0;app.data.wedstrijden.forEach(w=>{const asg=(tempIndeling&&tempIndeling[w.id])||app.data.indeling[w.id]||{};if(Object.values(asg).filter(Boolean).includes(pid))n++});return n}
+// Uitklapblok onder een speler in Geschiedenis: welke wedstrijden heeft hij als taak?
+function playerTasksHtml(p){
+  const t=tasksForPerson(p.id);
+  const box=(inner)=>`<div style="margin:0 0 var(--sp-3);padding:var(--sp-3) var(--sp-4);background:var(--surface-2);border:1px solid var(--border-soft);border-radius:var(--r-md)">${inner}</div>`;
+  if(!t.length)return box(`<span class="small faint">Nog geen taken ingedeeld voor ${esc(fullName(p))}.</span>`);
+  const rows=t.map(x=>`<div style="display:flex;gap:var(--sp-3);align-items:baseline;padding:3px 0;flex-wrap:wrap"><span style="min-width:150px;color:var(--muted)">${esc(fmtDate(x.m.date))}</span><span style="min-width:48px;color:var(--muted)">${esc(x.m.time||'—')}</span><span class="badge ${x.role.type==='scheidsrechter'?'warn':'neutral'}" style="min-width:96px">${esc(x.role.label)}</span><span style="color:var(--faint)">${esc(x.m.homeTeam)} vs. ${esc(x.m.awayTeam)}</span></div>`).join('');
+  return box(`<div class="small faint" style="margin-bottom:var(--sp-2)">${t.length} taak/taken dit seizoen</div>${rows}`);
+}
+// Alle taken van één persoon dit seizoen, op datum/tijd gesorteerd
+function tasksForPerson(pid){const out=[];app.data.wedstrijden.forEach(m=>{if(m.away)return;const asg=assignmentFor(m.id);rolesFor(m).forEach(r=>{if(asg[r.key]===pid)out.push({m,role:r})})});return out.sort((a,b)=>(a.m.date+' '+(a.m.time||'')).localeCompare(b.m.date+' '+(b.m.time||'')))}
+// Teamnaam zonder clubprefix: "Zoebas - MSE-1" -> "MSE-1"
+function stripClub(name){const s=String(name||'').trim();const i=s.indexOf(' - ');return i>=0?s.slice(i+3).trim():s}
+// Alleen eigen teams (thuis én uit), zonder clubprefix, zodat ze matchen met het team-veld van spelers
+function teamList(){const s=new Set();app.data.wedstrijden.forEach(w=>[w.homeTeam,w.awayTeam].forEach(n=>{if(isOurClub(n)){const t=stripClub(n);if(t)s.add(t)}}));return [...s].sort((a,b)=>a.localeCompare(b))}
+function updateCounts(){const counts={};app.data.wedstrijden.forEach(w=>{rolesFor(w).forEach(role=>{const pid=assignmentFor(w.id)[role.key];if(!pid)return;counts[pid]??={scheidsrechter:0,jury:0};counts[pid][role.type]++})});app.data.tellingen=counts}
+function hardConflict(pid,match,tempIndeling){
+  const indeling=tempIndeling||app.data.indeling;
+  return app.data.wedstrijden.some(w=>{
+    if(w.id===match.id)return false;
+    if(w.date!==match.date||toMin(w.time)!==toMin(match.time))return false;
+    const asg=indeling[w.id]||{};
+    return Object.values(asg).filter(Boolean).includes(pid);
+  });
+}
+function sameDayElsewhere(pid,match,tempIndeling){
+  const indeling=tempIndeling||app.data.indeling;
+  return app.data.wedstrijden.some(w=>{
+    if(w.id===match.id)return false;
+    if(w.date!==match.date)return false;
+    if(toMin(w.time)===toMin(match.time))return false;
+    const asg=indeling[w.id]||{};
+    return Object.values(asg).filter(Boolean).includes(pid);
+  });
+}
+// LET OP: alleen ONZE thuiswedstrijden tellen. Bij een uitwedstrijd staat de tegenstander in homeTeam,
+// en sameTeam('Rotterdam-Zuid - M16-2','M16-2') is waar — zonder de w.away-check telt dat onterecht als "thuis".
+function teamPlaysOnDay(team,date){return !!normTeam(team)&&app.data.wedstrijden.some(w=>w.date===date&&!w.away&&sameTeam(w.homeTeam,team));}
+// Speelt (een van) de teams van deze persoon die dag een UITwedstrijd? Dan is hij er niet.
+function teamPlaysAwayOnDay(team,date){return !!normTeam(team)&&app.data.wedstrijden.some(w=>w.date===date&&w.away&&sameTeam(w.awayTeam,team));}
+function playerTeams(p){return (p&&p.teams&&p.teams.length?p.teams:[p&&p.team]).filter(Boolean);}
+function isOurClub(name){const c=normTeam(app.data.instellingen.vereniging||'');return !!c&&normTeam(name).includes(c);}
+function knownTeamSet(){const s=new Set();app.data.wedstrijden.forEach(w=>{if(w.homeTeam)s.add(w.homeTeam);if(w.awayTeam)s.add(w.awayTeam);});app.data.spelers.forEach(p=>playerTeams(p).forEach(t=>s.add(t)));(app.data.poule||[]).forEach(p=>playerTeams(p).forEach(t=>s.add(t)));return [...s];}
+function teamRecognized(name){return knownTeamSet().some(t=>sameTeam(t,name));}
+function teamChipHtml(name,coach){const ok=teamRecognized(name);return `<span class="tchip${ok?'':' unknown'}${coach?' coach':''}" data-team="${esc(name)}" data-coach="${coach?'1':'0'}"${ok?'':' title="Niet herkend — controleer de teamnaam"'}><button type="button" class="tchip-lbl" title="Klik: wissel speelt / coacht">${esc(name)}${coach?' · coach':''}</button><button type="button" class="tchip-x" aria-label="verwijder">×</button></span>`;}
+function teamChipsHtml(teams,coachTeams){const cs=new Set((coachTeams||[]).map(t=>String(t).toLowerCase()));return (teams||[]).map(t=>teamChipHtml(t,cs.has(String(t).toLowerCase()))).join('');}
+function bindTeamChips(containerId){const cont=document.getElementById(containerId);if(!cont)return;const inp=cont.querySelector('.tchip-inp');function bindX(){cont.querySelectorAll('.tchip-x').forEach(b=>b.onclick=()=>b.closest('.tchip').remove());}function bindLbl(){cont.querySelectorAll('.tchip-lbl').forEach(b=>b.onclick=()=>{const chip=b.closest('.tchip');const coach=chip.dataset.coach!=='1';chip.dataset.coach=coach?'1':'0';chip.classList.toggle('coach',coach);b.textContent=chip.dataset.team+(coach?' · coach':'');});}function add(){const parts=inp.value.split(/[,;/]+/).map(x=>x.trim()).filter(Boolean);parts.forEach(name=>{if(![...cont.querySelectorAll('.tchip')].some(c=>c.dataset.team.toLowerCase()===name.toLowerCase()))inp.insertAdjacentHTML('beforebegin',teamChipHtml(name,false));});inp.value='';bindX();bindLbl();}bindX();bindLbl();inp.onkeydown=e=>{if(e.key==='Enter'||e.key===','){e.preventDefault();e.stopPropagation();add();}else if(e.key==='Backspace'&&!inp.value){const chips=cont.querySelectorAll('.tchip');if(chips.length){e.preventDefault();chips[chips.length-1].remove();}}};inp.onblur=()=>{if(inp.value.trim())add();};cont.onclick=e=>{if(!e.target.closest('.tchip'))inp.focus();};}
+function collectTeamChips(containerId){const cont=document.getElementById(containerId);if(!cont)return {teams:[],coachTeams:[]};const teams=[],coachTeams=[];cont.querySelectorAll('.tchip').forEach(c=>{const n=c.dataset.team;if(!teams.some(t=>t.toLowerCase()===n.toLowerCase())){teams.push(n);if(c.dataset.coach==='1')coachTeams.push(n);}});const inp=cont.querySelector('.tchip-inp');if(inp&&inp.value.trim())inp.value.split(/[,;/]+/).map(x=>x.trim()).filter(Boolean).forEach(t=>{if(!teams.some(c=>c.toLowerCase()===t.toLowerCase()))teams.push(t);});return {teams,coachTeams};}
+function roleNorm(r){const v=String(r||'').toLowerCase().replace(/[^a-z]/g,'');if(!v)return'';const ref=v.includes('scheids')||v.includes('referee')||v.includes('ref')||v==='sr';const jury=v.includes('jury')||v.includes('tafel')||v.includes('scor')||v.includes('timer')||v.includes('tijdwaarnem');if(v.includes('beide')||v.includes('beiden')||v.includes('both')||v==='alle'||v==='all'||(ref&&jury))return'beide';if(ref)return'scheidsrechter';if(jury)return'jury';return'';}
+function roleEligible(playerRole,roleType){const pr=roleNorm(playerRole);return roleType==='scheidsrechter'?(pr==='scheidsrechter'||pr==='beide'):(pr==='jury'||pr==='beide');}
+// Leid rol af uit teamnaam: U14/U16 -> jury, vanaf U18 (en senioren MSE/VSE) -> beide, U8/U10/U12 -> geen rol
+function roleFromTeam(team){const t=String(team||'').toLowerCase();if(/mse|vse/.test(t))return'beide';const mm=t.match(/(\d{1,2})/);if(mm){const n=parseInt(mm[1],10);if(n>=18)return'beide';if(n>=14)return'jury';}return'';}
+// Leeftijdscategorie uit teamnaam (senioren = 99); jongste categorie van een persoon
+function teamAgeNum(team){const t=String(team||'').toLowerCase();if(/mse|vse/.test(t))return 99;const m=t.match(/(\d{1,2})/);return m?parseInt(m[1],10):null;}
+function youngestAge(p){const coach=new Set(((p&&p.coachTeams)||[]).map(t=>String(t).toLowerCase()));const ages=playerTeams(p).filter(t=>!coach.has(String(t).toLowerCase())).map(teamAgeNum).filter(a=>a!=null);return ages.length?Math.min(...ages):null;}
+function teamsDisplay(p){const coach=new Set(((p&&p.coachTeams)||[]).map(t=>String(t).toLowerCase()));return playerTeams(p).map(t=>coach.has(String(t).toLowerCase())?t+' (coach)':t).join(', ');}
+// U14 of jonger mag geen taak na 18:30
+function tooLateForYouth(p,match){const a=youngestAge(p);return a!=null&&a<=14&&toMin(match.time)>18*60+30;}
+// Onder 18 (U18-team of jonger) mag niet fluiten bij U22 of senioren.
+// Alleen het thuisteam telt: dat is altijd een eigen team, terwijl een tegenstandernaam cijfers kan bevatten (bv. "Cady '73").
+function tooYoungForSeniorRef(p,match){const a=youngestAge(p);if(a==null||a>18)return false;const m=teamAgeNum(match.homeTeam);return m!=null&&m>=22;}
+// Poule: afwezig (vakantie) op een datum?
+function onVacation(p,date){return ((p&&p.afwezig)||[]).some(r=>{const f=r.from,t=r.to||r.from;return f&&date>=f&&date<=t;});}
+// Poule: aantal indelingen van deze persoon in dezelfde kalenderweek (excl. de huidige wedstrijd)
+function weekAssignCount(pid,date,tempIndeling,exceptId){const ind=tempIndeling||app.data.indeling;const wk=mondayOf(date);let n=0;app.data.wedstrijden.forEach(w=>{if(w.id===exceptId)return;if(mondayOf(w.date)!==wk)return;const asg=ind[w.id]||{};if(Object.values(asg).filter(Boolean).includes(pid))n++;});return n;}
+// Poule: kortste afstand (in tijdsloten) tot een andere wedstrijd waar deze persoon die dag al staat (null = geen andere)
+function dayGapForPerson(pid,match,tempIndeling){const ind=tempIndeling||app.data.indeling;const times=dayTimes(match.date);const idx=times.indexOf(toMin(match.time));let best=null;app.data.wedstrijden.forEach(w=>{if(w.id===match.id||w.date!==match.date)return;const asg=ind[w.id]||{};if(!Object.values(asg).filter(Boolean).includes(pid))return;const wi=times.indexOf(toMin(w.time));if(wi<0)return;const d=Math.abs(wi-idx);if(best===null||d<best)best=d;});return best;}
+// Halfjaar-belasting: aantal taken per persoon in wedstrijden van de laatste 6 maanden (incl. geplande); voor 'vaker dan gemiddeld'-waarschuwing
+function halfYearSince(){const d=new Date();d.setMonth(d.getMonth()-6);return isoLocal(d);}
+function computeHalfYear(){const since=halfYearSince();const counts={};app.data.wedstrijden.forEach(w=>{if(w.date<since)return;const asg=app.data.indeling[w.id]||{};rolesFor(w).forEach(role=>{const pid=asg[role.key];if(pid)counts[pid]=(counts[pid]||0)+1;});});const pool=new Set([...app.data.spelers.map(p=>p.id),...(app.data.poule||[]).map(p=>p.id)]);const total=Object.values(counts).reduce((a,b)=>a+b,0);return {counts,avg:pool.size?total/pool.size:0};}
+// "Vaak ingedeeld" verschijnt pas vanaf meer dan 4 taken; niet voor poule-leden
+function overAvg(id){if(isPoule(id))return false;const hy=app._hy||(app._hy=computeHalfYear());const c=hy.counts[id]||0;return c>4;}
+function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
+  const currentAsg=tempAsg||assignmentFor(match.id);
+  const usedInMatch=Object.values(currentAsg).filter(Boolean);
+  const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';
+  // teams die al aan een juryrol van deze wedstrijd zijn toegewezen (voor groepering)
+  const juryTeamsUsed=role.type==='jury'?rolesFor(match).filter(r=>r.type==='jury').map(r=>currentAsg[r.key]).filter(Boolean).map(pid=>player(pid)&&normTeam(player(pid).team)).filter(Boolean):[];
+  const playerCands=app.data.spelers
+    .filter(p=>p.status==='available')
+    .filter(p=>!usedInMatch.includes(p.id))
+    .filter(p=>!hardConflict(p.id,match,tempIndeling))
+    .filter(p=>roleEligible(p.role,role.type))
+    .filter(p=>role.type!=='scheidsrechter'||!isPoule(p.id))
+    .map(p=>{
+      let score=0;const reasons=[];let hard=false;let tier=0;
+      const teams=playerTeams(p);
+      // HARDE regel: geen van de team(s) speelt op deze dag -> mag niet ingedeeld worden
+      const playsToday=teams.some(t=>teamPlaysOnDay(t,match.date));
+      // HARDE regel: (een) eigen team speelt op exact dit tijdstip -> mag de taak niet doen
+      const playsNow=app.data.wedstrijden.some(w=>w.date===match.date&&toMin(w.time)===toMin(match.time)&&teams.some(t=>(!w.away&&sameTeam(w.homeTeam,t))||(w.away&&sameTeam(w.awayTeam,t))));
+      // kortste afstand tot een eigen wedstrijd vlak voor/na (over alle teams)
+      let slotDist=null;teams.forEach(t=>{const dd=teamSlotDistance(t,match);if(dd!=null&&(slotDist===null||dd<slotDist))slotDist=dd;});
+      // Eigen beschikbaarheidslijst vervangt de "team speelt vandaag"-eis
+      const eigenLijst=availabilityFor(p).length>0;
+      if(eigenLijst){
+        if(notAvailable(p,match)){hard=true;score+=1000;reasons.push('Niet beschikbaar op dit moment')}
+      }else if(!playsToday){hard=true;score+=1000;reasons.push('Team speelt niet op deze dag')}
+      // HARDE regel: eigen team speelt die dag uit -> speler is naar een andere sporthal, dus niet inzetbaar
+      if(!eigenLijst&&teams.some(t=>teamPlaysAwayOnDay(t,match.date))){hard=true;score+=1000;reasons.push('Eigen team speelt uit')}
+      if(playsNow){hard=true;score+=1000;reasons.push('Eigen team speelt nu')}
+      if(tooLateForYouth(p,match)){hard=true;score+=1000;reasons.push('U14 of jonger — niet na 18:30')}
+      if(role.type==='scheidsrechter'){
+        tier=-licRank(p.license); // hogere licentie/ervaring eerst voor scheidsrechteren
+        // HARDE regel: onder 18 mag niet fluiten bij U22 of senioren
+        if(tooYoungForSeniorRef(p,match)){hard=true;score+=1000;reasons.push('Onder 18 — niet fluiten bij U22/senioren')}
+        // HARDE regel: vereiste licentie ontbreekt
+        if(reqLic&&!licenseMeets(p.license,reqLic)){hard=true;score+=1000;reasons.push('Mist licentie '+reqLic)}
+        // KOPPELING: geen twee onervaren scheidsrechters samen; koppel ervaren aan nieuwe
+        const otherRefPid=rolesFor(match).filter(r=>r.type==='scheidsrechter'&&r.key!==role.key).map(r=>currentAsg[r.key]).filter(Boolean)[0];
+        if(otherRefPid){const _op=person(otherRefPid);const otherRank=_op?licRank(_op.license):0;const myRank=licRank(p.license);if(otherRank<=1&&myRank<=1){score+=40;reasons.push('Twee onervaren scheidsrechters')}else if(otherRank<=1&&myRank>=3){score-=15}else if(otherRank>=3&&myRank<=1){score-=5}}
+        // VOORKEUR: team speelt 1 tijdslot voor/na (ideaal) of 2 (oké), anders toegestaan maar minder gewenst
+        if(playsToday&&!playsNow&&!eigenLijst){const d=slotDist;if(d===1){}else if(d===2){score+=20;reasons.push('Team speelt 2 wedstrijden voor/na')}else{score+=50;reasons.push('Team speelt niet vlak voor/na')}}
+      }else{
+        const _adj=(slotDist===1); tier=(roleNorm(p.role)==='jury')?(_adj?0:2):(_adj?1:3); // 1 wedstrijd afstand = uitgangspunt; geen jury-only binnen 1 -> 'beide' met laagste licentie
+        score+=licRank(p.license)*4; // bewaar hogere licenties voor scheidsrechteren
+        // VOORKEUR: zelfde tijdslot-regel voor juryleden
+        if(playsToday&&!playsNow&&!eigenLijst){const d=slotDist;if(d===1){if(juryTeamsUsed.includes(normTeam(p.team)))score-=10}else if(d===2){score+=20;reasons.push('Team speelt 2 wedstrijden voor/na')}else{score+=50;reasons.push('Team speelt niet vlak voor/na')}}
+      }
+      if(sameDayElsewhere(p.id,match,tempIndeling)){hard=true;score+=1000;reasons.push('Al een taak vandaag')} // max 1 taak per dag (poule uitgezonderd)
+      // HARDE regel: seizoensmaximum aantal taken bereikt
+      {const _mx=maxTasks();if(_mx&&seasonTaskCount(p.id,tempIndeling)>=_mx){hard=true;score+=1000;reasons.push('Maximum van '+_mx+' taken bereikt')}}
+      const c=(tempCounts&&tempCounts[p.id])||app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};
+      return{player:p,reasons,score,hard,count:c,poule:false,tier};
+    });
+  // Poule-scheidsrechters: eerste keuze voor scheidsrechtersrollen
+  let pouleCands=[];
+  if(role.type==='scheidsrechter'){
+    pouleCands=(app.data.poule||[])
+      .filter(p=>!usedInMatch.includes(p.id))
+      .filter(p=>!hardConflict(p.id,match,tempIndeling))
+      .map(p=>{
+        const per=person(p.id)||p; // gekoppelde speler levert naam/team/niveau; p levert vakantie
+        let score=0;const reasons=[];let hard=false;const teams=playerTeams(per);const tier=-licRank(per.license); // hogere licentie/ervaring eerst
+        if(onVacation(p,match.date)){hard=true;score+=1000;reasons.push('Afwezig (vakantie)')}
+        if(weekAssignCount(p.id,match.date,tempIndeling,match.id)>=2){hard=true;score+=1000;reasons.push('Al 2× deze week')}
+        const playsNow=app.data.wedstrijden.some(w=>w.date===match.date&&toMin(w.time)===toMin(match.time)&&teams.some(t=>(!w.away&&sameTeam(w.homeTeam,t))||(w.away&&sameTeam(w.awayTeam,t))));
+        if(playsNow){hard=true;score+=1000;reasons.push('Eigen team speelt nu')}
+        if(tooLateForYouth(per,match)){hard=true;score+=1000;reasons.push('U14 of jonger — niet na 18:30')}
+        // (onder-18-regel geldt niet voor poule-scheidsrechters)
+        if(reqLic&&!licenseMeets(per.license,reqLic)){hard=true;score+=1000;reasons.push('Mist licentie '+reqLic)}
+        const otherRefPid=rolesFor(match).filter(r=>r.type==='scheidsrechter'&&r.key!==role.key).map(r=>currentAsg[r.key]).filter(Boolean)[0];
+        if(otherRefPid){const _op=person(otherRefPid);const otherRank=_op?licRank(_op.license):0;const myRank=licRank(per.license);if(otherRank<=1&&myRank<=1){score+=40;reasons.push('Twee onervaren scheidsrechters')}else if(otherRank<=1&&myRank>=3){score-=15}else if(otherRank>=3&&myRank<=1){score-=5}}
+        // Aansluitend fluiten: liefst achter elkaar, nooit begin + eind van de dag
+        const gap=dayGapForPerson(p.id,match,tempIndeling);
+        if(gap!==null){if(gap>=3){hard=true;score+=1000;reasons.push('Te ver van andere wedstrijd (begin/eind dag)')}else if(gap===2){score+=15;reasons.push('Niet aansluitend')}else{score-=8;}}
+        const c=(tempCounts&&tempCounts[p.id])||app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};
+        return{player:per,reasons,score,hard,count:c,poule:true,tier};
+      });
+  }
+  // sorteer: eerst niet-hard, daarbinnen poule vóór gewone spelers, dan op score/aantal/naam
+  return [...pouleCands,...playerCands].sort((a,b)=>(a.hard-b.hard)||((a.poule?0:1)-(b.poule?0:1))||((a.tier||0)-(b.tier||0))||a.score-b.score||((a.count.scheidsrechter+a.count.jury)-(b.count.scheidsrechter+b.count.jury))||fullName(a.player).localeCompare(fullName(b.player)));
+}
+function autoPick(candidates){return candidates.find(c=>!c.hard)||null}
+function showSuggest(inp){const box=inp.parentElement.querySelector('.suggest');if(!box)return;const term=inp.value.trim().toLowerCase();if(term.length<3){box.innerHTML='';return}const matches=app.data.spelers.filter(p=>fullName(p).toLowerCase().includes(term)||String(p.team||'').toLowerCase().includes(term)).slice(0,8);box.innerHTML=matches.length?matches.map(p=>`<div class="suggest-item" data-pid="${p.id}">${esc(fullName(p))} <span class="faint">${esc(p.team||'')}</span></div>`).join(''):'<div class="suggest-empty">geen treffers</div>';box.querySelectorAll('.suggest-item').forEach(it=>it.onclick=()=>assignRole(inp.dataset.sm,inp.dataset.sr,it.dataset.pid))}
+// Zonder aanvangstijd kloppen de tijdslot- en conflictregels niet; niet automatisch indelen
+function hasTime(m){return !!(m&&String(m.time||'').trim())}
+function autoAssign(matchId){
+  const m=app.data.wedstrijden.find(w=>w.id===matchId);if(!m)return;
+  if(!hasTime(m)){toast('Geen aanvangstijd bekend — deze wedstrijd wordt niet automatisch ingedeeld');return}
+  const asg={...assignmentFor(matchId)};
+  let filled=0,open=0;
+  rolesFor(m).forEach(role=>{
+    if(asg[role.key])return;
+    const candidates=rankedCandidates(m,role,asg,null,null);
+    const best=autoPick(candidates);
+    if(best){asg[role.key]=best.player.id;filled++}else{open++}
+  });
+  app.data.indeling[matchId]=asg;updateCounts();saveAll();render();
+  if(filled===0&&open>0){toast('Geen taken kunnen invullen ('+open+' open). Speelt er een team 1 tijdslot voor/na deze wedstrijd?')}
+  else if(open>0){toast(filled+' ingevuld, '+open+' open (geen geschikt team vlak voor/na)')}
+  else{toast(filled?'Wedstrijd volledig ingedeeld':'Alles was al ingedeeld')}
+}
+function autoAssignWeek(offset){
+  const alle=app.data.wedstrijden.filter(w=>!w.away&&inWeek(w.date,offset));
+  const weekMatches=alle.filter(hasTime).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  const zonderTijd=alle.length-weekMatches.length;
+  if(!weekMatches.length){toast(zonderTijd?('Alleen wedstrijden zonder aanvangstijd ('+zonderTijd+') — niet ingedeeld'):'Geen wedstrijden in deze week');return;}
+  const tempIndeling={};
+  const tempCounts={};
+  weekMatches.forEach(m=>{
+    const asg={...assignmentFor(m.id)};
+    tempIndeling[m.id]=asg;
+    rolesFor(m).forEach(role=>{
+      if(asg[role.key])return;
+      const candidates=rankedCandidates(m,role,asg,tempIndeling,tempCounts);
+      const best=autoPick(candidates);
+      if(best){
+        asg[role.key]=best.player.id;
+        tempIndeling[m.id]=asg;
+        tempCounts[best.player.id]=tempCounts[best.player.id]||{scheidsrechter:0,jury:0};
+        tempCounts[best.player.id][role.type]++;
+      }
+    });
+    tempIndeling[m.id]=asg;
+  });
+  app.data.indeling=Object.assign({},app.data.indeling,tempIndeling);
+  updateCounts();saveAll();render();
+  toast('Week ingedeeld: '+weekMatches.length+' wedstrijd(en)'+(zonderTijd?(' · '+zonderTijd+' overgeslagen (geen tijd)'):''));
+}
+function autoAssignRange(){
+  const alle=matchesInRange();
+  const matches=alle.filter(hasTime);
+  const zonderTijd=alle.length-matches.length;
+  if(!matches.length){toast(zonderTijd?('Alleen wedstrijden zonder aanvangstijd ('+zonderTijd+') — niet ingedeeld'):'Geen wedstrijden in deze periode');return;}
+  const tempIndeling=JSON.parse(JSON.stringify(app.data.indeling||{}));
+  const tempCounts={};
+  let filled=0,open=0,already=0;
+  matches.forEach(m=>{
+    const asg={...(tempIndeling[m.id]||assignmentFor(m.id))};
+    tempIndeling[m.id]=asg;
+    rolesFor(m).forEach(role=>{
+      if(asg[role.key]){already++;return;}
+      const candidates=rankedCandidates(m,role,asg,tempIndeling,tempCounts);
+      const best=autoPick(candidates);
+      if(best){
+        asg[role.key]=best.player.id;
+        tempIndeling[m.id]=asg;
+        tempCounts[best.player.id]=tempCounts[best.player.id]||{scheidsrechter:0,jury:0};
+        tempCounts[best.player.id][role.type]++;
+        filled++;
+      }else{open++;}
+    });
+    tempIndeling[m.id]=asg;
+  });
+  app.data.indeling=Object.assign({},app.data.indeling,tempIndeling);
+  updateCounts();saveAll();render();
+  if(filled===0&&open>0){toast('Geen taken kunnen invullen ('+open+' plekken open). Controleer: speelt er een team 1 tijdslot voor/na, kloppen teamnamen, rollen en licenties?')}
+  else if(open>0){toast(filled+' taken ingevuld, '+open+' plek(ken) open gebleven (geen geschikt team vlak voor/na)'+(zonderTijd?(' · '+zonderTijd+' wedstrijd(en) overgeslagen: geen tijd'):''))}
+  else{toast((filled?filled+' taken ingevuld — periode compleet':'Alles was al ingedeeld')+(zonderTijd?(' · '+zonderTijd+' overgeslagen (geen tijd)'):''))}
+}
+function copyText(matches){const lines=['🏀 WEDSTRIJDINDELING',app.data.instellingen.vereniging+' | '+app.data.instellingen.seizoen,''];matches.forEach(m=>{lines.push('📅 '+fmtDate(m.date)+' — '+m.time);lines.push(m.homeTeam+' vs. '+m.awayTeam);rolesFor(m).forEach(r=>{const pid=assignmentFor(m.id)[r.key];lines.push('  '+(r.type==='scheidsrechter'?'🟠':'⬜')+' '+r.label+': '+(pid?playerName(pid):'— (niet ingedeeld)'))});lines.push('')});lines.push('Gegenereerd door Basketbal Indeling App');return lines.join('\n')}
+function renderNav(){nav.innerHTML=tabs.map(([id,label,icon])=>`<button class="${app.tab===id?'active':''}" data-tab="${id}"><i data-lucide="${icon}"></i>${label}</button>`).join('');nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{app.tab=b.dataset.tab;render()})}
+function render(){try{localStorage.setItem('bball_tab',app.tab)}catch(e){}app._hy=computeHalfYear();renderNav();pageTitle.textContent=tabs.find(t=>t[0]===app.tab)[1];const _c=document.getElementById('topCrumb');if(_c)_c.textContent=`${app.data.instellingen.vereniging} · ${app.data.instellingen.seizoen}`;const _b=document.getElementById('brandSub');if(_b)_b.textContent=app.data.instellingen.vereniging;view.innerHTML=views[app.tab]();bind();try{if(typeof lucide!=='undefined'&&lucide.createIcons)lucide.createIcons()}catch(e){}}
+/* ===== redesign view layer (new look, original logic) ===== */
+function initials(p){const f=fullName(p);const parts=String(f||'').split(' ').filter(Boolean);if(!parts.length)return '?';const a=parts[0][0]||'';const b=parts.length>1?parts[parts.length-1][0]:'';return (a+b).toUpperCase();}
+function weekdayAbbr(date){const d=new Date(date+'T00:00:00');return isNaN(d)?'':d.toLocaleDateString('nl-NL',{weekday:'short'}).replace('.','');}
+function slotWarns(pid,match,role){const w=[];if(!pid)return w;const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(overAvg(pid))w.push({sev:'warn',label:'vaak ingedeeld'});if(isPoule(pid)){const rec=pouleMember(pid);if(!rec)return w;const p=person(pid)||rec;if(onVacation(rec,match.date))w.push({sev:'block',label:'afwezig'});if(tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(weekAssignCount(pid,match.date,null,match.id)>=2)w.push({sev:'block',label:'al 2× deze week'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else{const g=dayGapForPerson(pid,match,null);if(g!==null&&g>=3)w.push({sev:'warn',label:'niet aansluitend'});}if(app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}const p=player(pid);if(p){if(!roleNorm(p.role))w.push({sev:'block',label:'geen rol'});else if(!roleEligible(p.role,role.type))w.push({sev:'block',label:'rol past niet'});}if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(p&&tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(p&&!playerTeams(p).some(t=>teamPlaysOnDay(t,match.date)))w.push({sev:'block',label:'team speelt niet die dag'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(sameDayElsewhere(pid,match,null))w.push({sev:'block',label:'al een taak vandaag'});if(p&&app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}
+function mBlock(match){return rolesFor(match).some(r=>{const pid=assignmentFor(match.id)[r.key];return pid&&slotWarns(pid,match,r).some(x=>x.sev==='block')});}
+function mStatus(match){const roles=rolesFor(match),asg=assignmentFor(match.id),filled=roles.filter(r=>asg[r.key]).length;if(mBlock(match))return['block','Conflict'];if(filled===0)return['open','Niet ingedeeld'];if(filled===roles.length)return['ok','Volledig'];return['warn',filled+'/'+roles.length+' ingevuld'];}
+
+function slotHtml(m,role){
+  const pid=assignmentFor(m.id)[role.key]||'';const p=person(pid);
+  const warns=pid?slotWarns(pid,m,role):[];
+  const hasBlock=warns.some(w=>w.sev==='block');const hasWarn=!hasBlock&&warns.length>0;
+  const cls='slot'+(hasBlock?' has-block':hasWarn?' has-warn':'');
+  const req=role.type==='scheidsrechter'?refLicReq(m,role.key):'';
+  const licBtn=role.type==='scheidsrechter'?`<select class="lic-sel${req?' set':''}" data-lic-select data-lic-match="${m.id}" data-lic-role="${role.key}" title="Vereist niveau / licentie"><option value=""${!req?' selected':''}>geen eis</option>${['Beginner','Gevorderd','Ervaren','BS2','BS3'].map(n=>`<option value="${n}"${req===n?' selected':''}>${n}</option>`).join('')}</select>`:'';
+  const body=p?`<button class="chip filled" data-pick-match="${m.id}" data-pick-role="${role.key}"><span class="avatar">${initials(p)}</span><span class="chip-info"><span class="nm">${esc(fullName(p))}</span><span class="mt">${isPoule(pid)?'<b style="color:var(--primary)">Poule</b> · ':''}${esc(playerTeams(p).join(', ')||'—')}${p.license?' · '+esc(p.license):''}</span></span><span class="x" data-clear-slot data-clear-match="${m.id}" data-clear-role="${role.key}" title="Verwijderen"><i data-lucide="x"></i></span></button>`:`<button class="chip empty" data-pick-match="${m.id}" data-pick-role="${role.key}"><i data-lucide="plus"></i> Toewijzen</button>`;
+  const wb=warns.length?`<div class="slot-warns">${warns.map(w=>`<span class="wbadge ${w.sev}"><i data-lucide="${w.sev==='block'?'ban':'alert-triangle'}"></i>${esc(w.label)}</span>`).join('')}</div>`:'';
+  return `<div class="${cls}"><div class="slot-label"><span class="role">${esc(role.label)}</span>${licBtn}</div>${body}${wb}</div>`;
+}
+function matchCardHtml(m){
+  const roles=rolesFor(m);const st=mStatus(m);
+  const slots=roles.map(r=>slotHtml(m,r)).join('');
+  const t24=m.extra24?`<button class="slot chip empty slot24" data-toggle24-match="${m.id}" title="24-seconde operator verwijderen"><i data-lucide="x"></i> 24-sec weghalen</button>`:`<button class="slot chip empty slot24" data-toggle24-match="${m.id}" title="24-seconde operator toevoegen"><i data-lucide="plus"></i> 24-sec operator</button>`;
+  return `<div class="match" id="m-${m.id}"><div class="match-head"><div class="time-chip"><span class="t">${esc(m.time)}</span><span class="d">${weekdayAbbr(m.date)}</span></div><div class="match-teams"><div class="vs"><span class="home">${esc(m.homeTeam)}</span><span class="sep">vs</span><span class="away">${esc(m.awayTeam)}</span></div></div><span class="status ${st[0]}"><span class="d"></span>${st[1]}</span><div class="head-actions"><button class="icon-btn" title="Automatisch indelen" data-auto-match="${m.id}"><i data-lucide="wand-2"></i></button><button class="icon-btn" title="PDF" data-pdf-match="${m.id}"><i data-lucide="file-down"></i></button><button class="icon-btn" title="Kopieer" data-copy-match="${m.id}"><i data-lucide="clipboard"></i></button><button class="icon-btn danger" title="Wis wedstrijd" data-clearfull-match="${m.id}"><i data-lucide="eraser"></i></button></div></div><div class="slots">${slots}${t24}</div></div>`;
+}
+
+/* ===== picker slide-over ===== */
+function openPicker(matchId,roleKey){app.picker={matchId,roleKey};renderPicker('');document.getElementById('pickerScrim').classList.add('show');document.getElementById('picker').classList.add('show');setTimeout(()=>{const s=document.getElementById('pickerSearch');if(s)s.focus()},230);}
+function closePicker(){app.picker=null;document.getElementById('pickerScrim').classList.remove('show');document.getElementById('picker').classList.remove('show');}
+function renderPicker(q){
+  if(!app.picker)return;
+  const m=app.data.wedstrijden.find(w=>w.id===app.picker.matchId);if(!m)return;
+  const role=rolesFor(m).find(r=>r.key===app.picker.roleKey);if(!role)return;
+  const asg=assignmentFor(m.id);const current=asg[role.key]||'';
+  const asgWithout={...asg};delete asgWithout[role.key];
+  let cands=rankedCandidates(m,role,asgWithout,null,null);
+  const t=String(q||'').trim().toLowerCase();
+  if(t.length>=3)cands=cands.filter(c=>fullName(c.player).toLowerCase().includes(t)||String(c.player.team||'').toLowerCase().includes(t));
+  cands=cands.slice(0,80);
+  const reqLic=role.type==='scheidsrechter'?refLicReq(m,role.key):'';
+  const rowHtml=c=>{const p=c.player;const over=overAvg(p.id);const rec=c.reasons.length===0&&!over;const tags=c.reasons.map(r=>`<span class="tag ${(r.indexOf('Mist licentie')===0||r.indexOf('Eigen team')===0)?'block':'warn'}">${esc(r)}</span>`).join('')+(over?'<span class="tag warn">vaak ingedeeld</span>':'');const cc=app.data.tellingen[p.id];const tot=cc?(cc.scheidsrechter+cc.jury):0;return `<button class="cand${rec?' rec':''}${p.id===current?' current':''}" data-pick="${p.id}"><span class="avatar">${initials(p)}</span><span class="ci"><span class="nm">${esc(fullName(p))}${rec?'<span class="rec-tag">Aanbevolen</span>':''}</span><span class="mt">${c.poule?'<b style="color:var(--primary)">Poule</b> · ':''}${esc(playerTeams(p).join(', ')||'—')}${c.poule?'':(p.role?' · '+esc(p.role):'')}${p.license?' · '+esc(p.license):''}</span>${tags?`<span class="tags">${tags}</span>`:''}</span><span class="count"><b>${tot}</b>dit seizoen</span></button>`;};
+  const picker=document.getElementById('picker');
+  picker.innerHTML=`<div class="picker-head"><div class="ctx">${esc(m.homeTeam)} vs ${esc(m.awayTeam)} · ${esc(m.time)}</div><div class="ttl">${esc(role.label)}${reqLic?`<span class="req">${reqLic} vereist</span>`:''}</div><button class="close" id="pickerClose"><i data-lucide="x"></i></button><div class="search"><i data-lucide="search"></i><input id="pickerSearch" value="${esc(q||'')}" placeholder="Zoek op naam of team (vanaf 3 letters)…" autocomplete="off"></div></div><div class="picker-list">${cands.length?'<div class="grp-label">Beschikbaar · op geschiktheid</div>':''}${cands.map(rowHtml).join('')}${cands.length===0?'<div class="empty-list">Geen personen gevonden.</div>':''}</div><div class="picker-foot">${current?'<button class="clear-link" id="pickerClear"><i data-lucide="eraser"></i> Plek leegmaken</button>':'<span class="small faint">Kies een persoon om toe te wijzen</span>'}<span class="small faint">${cands.length} getoond</span></div>`;
+  try{if(typeof lucide!=='undefined'&&lucide.createIcons)lucide.createIcons()}catch(e){}
+  const cl=document.getElementById('pickerClose');if(cl)cl.onclick=closePicker;
+  const cr=document.getElementById('pickerClear');if(cr)cr.onclick=()=>{assignRole(m.id,role.key,'');closePicker();};
+  const se=document.getElementById('pickerSearch');if(se)se.oninput=()=>{const v=se.value;renderPicker(v);const el=document.getElementById('pickerSearch');if(el){el.focus();el.value=v;el.setSelectionRange(v.length,v.length);}};
+  picker.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{assignRole(m.id,role.key,b.dataset.pick);closePicker();});
+}
+function bindNew(){
+  const ps=document.getElementById('pickerScrim');if(ps)ps.onclick=closePicker;
+  document.querySelectorAll('[data-goto-indeling]').forEach(b=>b.onclick=()=>{app.tab='indeling';render();});
+  document.querySelectorAll('[data-pick-match]').forEach(b=>b.onclick=()=>openPicker(b.dataset.pickMatch,b.dataset.pickRole));
+  document.querySelectorAll('[data-clear-slot]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();assignRole(b.dataset.clearMatch,b.dataset.clearRole,'');});
+  document.querySelectorAll('[data-lic-select]').forEach(s=>s.onchange=()=>setRefLic(s.dataset.licMatch,s.dataset.licRole,s.value));
+}
+
+const views={
+ dashboard(){
+  const weekMatches=app.data.wedstrijden.filter(w=>!w.away&&inWeek(w.date,app.weekOffset)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  let totalRoles=0,filled=0,conflicts=0;
+  weekMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
+  const open=totalRoles-filled;
+  const full=weekMatches.filter(m=>mStatus(m)[0]==='ok').length;
+  const avail=app.data.spelers.filter(p=>p.status==='available').length;
+  const s=weekStart(app.weekOffset),e=new Date(s);e.setDate(e.getDate()+6);
+  return `<div class="page-head"><div class="lead"><h2>Overzicht — deze week</h2><p>${s.toLocaleDateString('nl-NL')} t/m ${e.toLocaleDateString('nl-NL')} · ${weekMatches.length} wedstrijd(en). Zie in één oogopslag wat er nog moet gebeuren.</p></div><div class="head-tools"><button class="btn ghost" data-week="-1"><i data-lucide="chevron-left"></i> Vorige</button><button class="btn ghost" data-week="1">Volgende <i data-lucide="chevron-right"></i></button><button class="btn secondary" id="copyWeekBtn"><i data-lucide="clipboard"></i> Kopieer week</button></div></div>
+  <div class="stat-grid"><div class="stat primary"><div><div class="k">Nog in te delen</div><div class="v">${open}</div><div class="sub">taken zonder persoon${conflicts>0?` · ${conflicts} conflict${conflicts>1?'en':''}`:''}</div></div><button class="btn primary" data-goto-indeling><i data-lucide="wand-2"></i> Naar indeling</button></div><div class="stat"><div class="k">Volledig ingedeeld</div><div class="v">${full}</div><div class="sub">van ${weekMatches.length} wedstrijden</div></div><div class="stat"><div class="k">Spelers beschikbaar</div><div class="v">${avail}</div><div class="sub">van ${app.data.spelers.length} in de pool</div></div></div>
+  <div class="card"><div class="section-h"><h3>Weekplanning</h3><span class="badge neutral">${filled}/${totalRoles} taken</span></div><div class="mini-list">${weekMatches.length?weekMatches.map(m=>{const st=mStatus(m);return `<div class="mini-row" data-open-match="${m.id}"><span class="tm">${esc(m.time)}</span><span class="mt">${esc(m.homeTeam)}<span>vs</span>${esc(m.awayTeam)}</span><span class="badge ${st[0]}"><span class="d"></span>${st[1]}</span></div>`;}).join(''):'<div class="empty-list">Geen wedstrijden in deze week.</div>'}</div></div>`;
+ },
+ wedstrijden(){
+  const list=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  return `<div class="page-head"><div class="lead"><h2>Wedstrijden</h2><p>Upload een Excel of voeg handmatig toe. Na upload koppel je de kolommen voor datum, tijd, thuisteam en tegenstander.</p></div><div class="head-tools"><label class="file-label"><input id="wedstrijdFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="upload"></i> Excel uploaden</label><button class="btn primary" id="openMatchForm"><i data-lucide="plus"></i> Wedstrijd toevoegen</button><button class="btn danger" id="deleteAllMatchesBtn"><i data-lucide="trash-2"></i> Alle verwijderen</button></div></div>
+  <div class="card tight"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Tijd</th><th>Thuisteam</th><th>Tegenstander</th><th>Status</th><th></th></tr></thead><tbody>${list.map(m=>{const st=mStatus(m);return `<tr ${m.away?'':`data-row-match="${m.id}" class="clickrow"`}><td>${esc(fmtDate(m.date))}</td><td class="mono-faint">${esc(m.time)}</td><td style="font-weight:600">${esc(m.homeTeam)}</td><td>${esc(m.awayTeam)}</td><td>${m.away?'<span class="badge neutral"><span class="d"></span>Uit</span>':`<span class="badge ${st[0]}"><span class="d"></span>${st[1]}</span>`}</td><td><div class="row-acts">${m.away?'':`<button class="btn ghost" data-open-match="${m.id}">Open</button>`}<button class="icon-btn" title="Bewerken" data-edit-match="${m.id}"><i data-lucide="pencil"></i></button><button class="icon-btn danger" title="Verwijderen" data-delete-match="${m.id}"><i data-lucide="trash-2"></i></button></div></td></tr>`;}).join('')||'<tr><td colspan="6" class="faint" style="padding:24px 16px">Nog geen wedstrijden.</td></tr>'}</tbody></table></div></div>`;
+ },
+ spelers(){
+  const f=(app.playerFilter||'').toLowerCase();
+  const sf=app.spelerFilters||(app.spelerFilters={team:'',rol:'',niveau:'',status:''});
+  const allTeams=[...new Set(app.data.spelers.flatMap(p=>playerTeams(p)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const NIVEAUS=['Beginner','Gevorderd','Ervaren','BS2','BS3'];
+  const list=app.data.spelers.filter(p=>{
+    if(f&&![fullName(p),playerTeams(p).join(' '),p.role,p.license].some(v=>String(v||'').toLowerCase().includes(f)))return false;
+    if(sf.team&&!playerTeams(p).includes(sf.team))return false;
+    if(sf.rol&&(roleNorm(p.role)||'geen')!==sf.rol)return false;
+    if(sf.niveau&&(p.license||'Geen')!==sf.niveau)return false;
+    if(sf.status&&p.status!==sf.status)return false;
+    return true;
+  });
+  const row=p=>`<div class="srow" data-row-player="${p.id}"><div class="cell-name"><span class="avatar sm">${initials(p)}</span><span class="nm">${esc(fullName(p))}</span></div><div class="mono-faint sc-team">${esc(teamsDisplay(p)||'—')}</div><select class="mini" data-player-role="${p.id}"><option value="" ${!roleNorm(p.role)?'selected':''}>— geen —</option><option value="scheidsrechter" ${roleNorm(p.role)==='scheidsrechter'?'selected':''}>Scheidsrechter</option><option value="jury" ${roleNorm(p.role)==='jury'?'selected':''}>Jury</option><option value="beide" ${roleNorm(p.role)==='beide'?'selected':''}>Beide</option></select><select class="mini" data-player-niveau="${p.id}"><option value="" ${!p.license?'selected':''}>Geen</option>${NIVEAUS.map(n=>`<option value="${n}" ${p.license===n?'selected':''}>${n}</option>`).join('')}</select><select class="mini" data-player-status="${p.id}"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select><input type="text" class="mini" data-player-reason="${p.id}" value="${esc(p.reason||'')}" placeholder="—"><div class="row-acts"><button class="icon-btn" title="Bewerken" data-edit-player="${p.id}"><i data-lucide="pencil"></i></button><button class="icon-btn danger" title="Verwijderen" data-delete-player="${p.id}"><i data-lucide="trash-2"></i></button></div></div>`;
+  return `<div class="page-head"><div class="lead"><h2>Spelers</h2><p>De pool van scheidsrechters en juryleden. Licenties (BS2/BS3) koppelen automatisch op naam na een Excel-upload.</p></div><div class="head-tools"><label class="file-label"><input id="spelersFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="upload"></i> Spelers uploaden</label><label class="file-label"><input id="licentieFile" type="file" accept=".xlsx,.xls,.csv" class="hidden"><i data-lucide="award"></i> Licenties uploaden</label><button class="btn primary" id="openPlayerForm"><i data-lucide="plus"></i> Speler toevoegen</button><button class="btn danger" id="deleteAllPlayersBtn"><i data-lucide="trash-2"></i> Alle verwijderen</button></div></div>
+  <div class="card" style="padding:14px 16px"><div class="filterbar"><div class="searchbar"><i data-lucide="search"></i><input type="search" id="playerSearch" placeholder="Zoek op naam…" value="${esc(app.playerFilter||'')}"></div><select class="mini" id="fTeam"><option value="">Alle teams</option>${allTeams.map(t=>`<option ${sf.team===t?'selected':''}>${esc(t)}</option>`).join('')}</select><select class="mini" id="fRol"><option value="">Alle rollen</option><option value="scheidsrechter" ${sf.rol==='scheidsrechter'?'selected':''}>Scheidsrechter</option><option value="jury" ${sf.rol==='jury'?'selected':''}>Jury</option><option value="beide" ${sf.rol==='beide'?'selected':''}>Beide</option><option value="geen" ${sf.rol==='geen'?'selected':''}>Geen rol</option></select><select class="mini" id="fNiveau"><option value="">Alle niveaus</option><option value="Geen" ${sf.niveau==='Geen'?'selected':''}>Geen</option>${NIVEAUS.map(n=>`<option value="${n}" ${sf.niveau===n?'selected':''}>${n}</option>`).join('')}</select><select class="mini" id="fStatus"><option value="">Alle beschikbaarheid</option><option value="available" ${sf.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${sf.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${sf.status==='inactive'?'selected':''}>Inactief</option></select>${(sf.team||sf.rol||sf.niveau||sf.status)?`<button class="btn ghost" id="clearFilters"><i data-lucide="x"></i> Wis filters</button>`:''}<span class="small faint" style="margin-left:auto">${list.length} van ${app.data.spelers.length}</span></div></div>
+  <div class="card tight" style="padding:6px 4px"><div class="slist-head"><span>Naam</span><span>Team(s)</span><span>Rol</span><span>Niveau</span><span>Status</span><span>Reden</span><span></span></div><div class="slist">${list.map(row).join('')||'<div class="empty-list">Geen spelers gevonden.</div>'}</div></div>`;
+ },
+ poule(){
+  const f=(app.pouleFilter||'').toLowerCase();
+  const list=(app.data.poule||[]).map(p=>({p,per:person(p.id)||p})).filter(x=>!f||[fullName(x.per),playerTeams(x.per).join(' '),x.per.license].some(v=>String(v||'').toLowerCase().includes(f))).sort((a,b)=>fullName(a.per).localeCompare(fullName(b.per)));
+  const row=x=>{const p=x.p,per=x.per,linked=!!player(p.id);return `<div class="srow pl-row" data-poule-row="${p.id}"><div class="cell-name"><span class="avatar sm">${initials(per)}</span><span class="nm">${esc(fullName(per))}${linked?' <span class="lic-tag set" style="padding:1px 6px">gekoppeld</span>':''}</span></div><div class="mono-faint sc-team">${esc(teamsDisplay(per)||'—')}</div><div class="mono-faint sc-team">${per.license?esc(per.license):'—'}</div><div class="mono-faint sc-team">${(p.afwezig&&p.afwezig.length)?(p.afwezig.length+' periode'+(p.afwezig.length>1?'s':'')):'—'}</div><div class="row-acts"><button class="icon-btn" title="Bewerken" data-edit-poule="${p.id}"><i data-lucide="pencil"></i></button><button class="icon-btn danger" title="Verwijderen" data-delete-poule="${p.id}"><i data-lucide="trash-2"></i></button></div></div>`;};
+  return `<div class="page-head"><div class="lead"><h2>Scheidsrechterspoule</h2><p>Vaste scheidsrechters die per weekend worden ingedeeld. Bij het indelen zijn zij eerste keuze, daarna gewone spelers. Max 2× per kalenderweek; vakantieperiodes worden overgeslagen, en er wordt rekening gehouden met hun eigen team(s).</p></div><div class="head-tools"><button class="btn secondary" id="openPouleImport"><i data-lucide="user-plus"></i> Toevoegen uit spelers</button><button class="btn primary" id="openPouleForm"><i data-lucide="plus"></i> Externe scheidsrechter</button></div></div>
+  <div class="card" style="padding:14px 16px"><div class="filterbar"><div class="searchbar"><i data-lucide="search"></i><input type="search" id="pouleSearch" placeholder="Zoek op naam of team…" value="${esc(app.pouleFilter||'')}"></div><span class="small faint" style="margin-left:auto">${list.length} scheidsrechter(s)</span></div></div>
+  <div class="card tight" style="padding:6px 4px"><div class="slist-head pl-head"><span>Naam</span><span>Team(s)</span><span>Niveau</span><span>Afwezig</span><span></span></div><div class="slist">${list.map(row).join('')||'<div class="empty-list">Nog geen scheidsrechters in de poule. Voeg er een toe met de knop rechtsboven.</div>'}</div></div>`;
+ },
+ indeling(){
+  const {from,to}=rangeBounds();
+  const rangeMatches=matchesInRange();
+  let totalRoles=0,filled=0,conflicts=0;
+  rangeMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
+  const pct=totalRoles?Math.round(filled/totalRoles*100):0;
+  const presets=[['week','Deze week'],['2w','Komende 2 weken'],['4w','Komende 4 weken'],['all','Hele seizoen']];
+  const periodbar=`<div class="periodbar"><div class="toprow"><div style="display:flex;flex-direction:column;gap:12px"><div class="seg">${presets.map(([k,l])=>`<button data-preset="${k}">${l}</button>`).join('')}</div><div class="daterow"><span class="lab">Van</span><div class="date-field"><input type="text" id="rangeFromText" value="${nlDate(from)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeFrom" value="${from}" aria-label="Van"></div><span class="lab">Tot</span><div class="date-field"><input type="text" id="rangeToText" value="${nlDate(to)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeTo" value="${to}" aria-label="Tot"></div></div></div><div class="actions"><button class="btn primary" id="bulkRangeBtn"><i data-lucide="wand-2"></i> Hele periode indelen</button><button class="btn secondary" id="copyRangeBtn"><i data-lucide="clipboard"></i> Kopieer</button><button class="btn danger" id="clearRangeBtn"><i data-lucide="eraser"></i> Wis periode</button></div></div><div class="progress-wrap"><div class="ring" style="--p:${pct}"><div class="inner">${pct}%</div></div><div class="progress-text"><div class="big">${filled} van ${totalRoles} taken ingevuld</div><div class="small">${rangeMatches.length} wedstrijd(en) in deze periode${conflicts>0?` · <b style="color:var(--block)">${conflicts} conflict${conflicts>1?'en':''}</b>`:(rangeMatches.length?' · <b style="color:var(--good)">geen conflicten</b>':'')}</div></div><div style="flex:1"></div><button class="btn danger" id="clearAllBtn" title="Wis hele seizoensindeling"><i data-lucide="trash-2"></i> Wis alles</button></div><div class="hint">Klik op een rol om een persoon te kiezen. In het zijpaneel staan kandidaten gesorteerd op geschiktheid; conflicten en ontbrekende licenties zie je meteen. "Hele periode indelen" vult lege plekken eerlijk in.</div></div>`;
+  if(!app.data.wedstrijden.length)return periodbar+`<div class="card"><p class="faint">Voeg eerst wedstrijden toe.</p></div>`;
+  if(!rangeMatches.length)return periodbar+`<div class="card"><p class="faint">Geen wedstrijden in deze periode. Pas de datums aan of kies een snelknop.</p></div>`;
+  const groups={};rangeMatches.forEach(m=>(groups[m.date]=groups[m.date]||[]).push(m));
+  let html=periodbar;
+  Object.keys(groups).sort().forEach(date=>{const list=groups[date].sort((a,b)=>a.time.localeCompare(b.time));html+=`<div class="day-head"><span class="dot"></span><h2>${esc(dayLabel(date))}</h2><span class="count">${list.length} wedstrijd(en)</span><span class="line"></span></div>`;list.forEach(m=>{html+=matchCardHtml(m);});});
+  return html;
+ },
+ geschiedenis(){
+  const sort=app.historySort||'total';
+  const _seen=new Set();const _ppl=[...app.data.spelers,...(app.data.poule||[])].filter(x=>{if(_seen.has(x.id))return false;_seen.add(x.id);return true;});
+  const rows=_ppl.map(x=>{const p=person(x.id)||x;const c=app.data.tellingen[x.id]||{scheidsrechter:0,jury:0};return{p,ref:c.scheidsrechter,jury:c.jury,total:c.scheidsrechter+c.jury};});
+  const sorters={total:(a,b)=>b.total-a.total,scheids:(a,b)=>b.ref-a.ref,jury:(a,b)=>b.jury-a.jury};
+  rows.sort((a,b)=>(sorters[sort]||sorters.total)(a,b)||fullName(a.p).localeCompare(fullName(b.p)));
+  const max=Math.max(1,...rows.map(r=>r.total));
+  const SORTS=[['total','Totaal'],['scheids','Scheidsrechter'],['jury','Jury']];
+  return `<div class="page-head"><div class="lead"><h2>Seizoensgeschiedenis</h2><p>Hoe vaak ieder lid is ingezet dit seizoen — als scheidsrechter en als jurylid. Gebruik dit om de verdeling eerlijk te houden.</p></div><div class="head-tools"><button class="btn secondary" id="exportHistoryBtn"><i data-lucide="file-down"></i> Excel export</button><button class="btn ghost" id="archiveBtn">Nieuw seizoen starten</button></div></div>
+  <div class="card"><div class="section-h"><div class="seg">${SORTS.map(([k,l])=>`<button class="${sort===k?'active':''}" data-hist-sort="${k}">${l}</button>`).join('')}</div><div class="legend"><span class="it"><span class="sw ref"></span>Scheidsrechter</span><span class="it"><span class="sw jury"></span>Jury</span></div></div><div class="hist">${rows.map((r,i)=>`<div class="hist-item"><div class="hist-row" data-hist-person="${r.p.id}" style="cursor:pointer" title="Klik voor de wedstrijden van deze speler"><span class="rank">${i+1}</span><span class="who"><span class="avatar sm">${initials(r.p)}</span><span style="min-width:0"><span class="nm" style="display:block">${esc(fullName(r.p))}${overAvg(r.p.id)?' <span class="badge warn" style="padding:0 6px;font-size:9.5px;vertical-align:middle">vaak ingedeeld</span>':''}</span><span class="tm">${esc(r.p.team||'')}</span></span></span><span class="hbar">${r.ref>0?`<span class="hseg ref" style="width:${r.ref/max*100}%"></span>`:''}${r.jury>0?`<span class="hseg jury" style="width:${r.jury/max*100}%"></span>`:''}</span><span class="tot">${r.total}<small>${r.ref} scheids · ${r.jury} jury</small></span></div>${app.openPlayers[r.p.id]?playerTasksHtml(r.p):''}</div>`).join('')||'<div class="empty-list">Nog geen data.</div>'}</div></div>`;
+ },
+ instellingen(){
+  const teams=teamList();
+  return `<div class="page-head"><div class="lead"><h2>Instellingen</h2><p>Algemene gegevens, exports en de standaardregels voor het indelen.</p></div></div>
+  <div class="card"><div class="section-h"><h3>Algemeen</h3></div><div class="form-grid"><div class="field"><label>Vereniging</label><input id="verenigingInput" type="text" value="${esc(app.data.instellingen.vereniging||'')}"></div><div class="field"><label>Seizoen</label><input id="seizoenInput" type="text" value="${esc(app.data.instellingen.seizoen||'')}"></div><div class="field"><label>Maximum taken per speler per seizoen</label><input id="maxTakenInput" type="number" min="0" step="1" value="${esc(String(maxTasks()))}"><span class="hint">0 = geen maximum. Geldt alleen voor het automatisch indelen; handmatig kun je er altijd overheen.</span></div></div><div class="toolbar" style="margin-top:var(--sp-4)"><button class="btn ghost" id="logoutBtn"><i data-lucide="lock"></i> Vergrendelen (uitloggen)</button></div></div>
+  <div class="card"><div class="section-h"><h3>Exporteren</h3></div><div class="form-grid"><div class="field"><label>PDF met taken per team</label><div class="toolbar"><select id="pdfTeamSelect" style="max-width:200px"><option value="">— kies team —</option>${teams.map(t=>`<option value="${esc(t)}" ${app.pdfTeam===t?'selected':''}>${esc(t)}</option>`).join('')}</select><button class="btn secondary" id="pdfTeamBtn"><i data-lucide="file-down"></i> Team-PDF</button></div></div><div class="field"><label>Agenda (alle wedstrijden)</label><div><button class="btn secondary" id="icsBtn"><i data-lucide="calendar-days"></i> iCal exporteren</button></div></div></div></div>
+  <div class="card"><div class="section-h"><h3>Indelingsregels</h3></div><p class="hint">Elke wedstrijd heeft standaard twee scheidsrechters, een timer en een scorer. In het indeelscherm voeg je per wedstrijd een 24-seconde operator toe en stel je per scheidsrechtersfunctie de vereiste licentie in (geen, BS2 of BS3). De automatische indeling verdeelt taken eerlijk op basis van het aantal beurten dit seizoen.</p></div>`;
+ }
+};
+function bind(){
+ bindNew();
+ document.querySelectorAll('[data-week]').forEach(b=>b.onclick=()=>{app.weekOffset+=Number(b.dataset.week);render()});
+ function openMatchInIndeling(id){const m=app.data.wedstrijden.find(w=>w.id===id);if(!m||m.away)return;app.selectedMatchId=id;app.tab='indeling';const d=new Date(m.date+'T00:00:00');const s=new Date(d);s.setDate(s.getDate()-((d.getDay()+6)%7));const e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e);render();setTimeout(()=>{const el=document.getElementById('m-'+id);if(el){el.scrollIntoView({behavior:'smooth',block:'start'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),2000);}},60);}
+ document.querySelectorAll('[data-open-match]').forEach(b=>b.onclick=()=>openMatchInIndeling(b.dataset.openMatch));
+ document.querySelectorAll('[data-row-match]').forEach(tr=>tr.onclick=e=>{if(e.target.closest('.row-acts,button,a,select,input'))return;openMatchInIndeling(tr.dataset.rowMatch)});
+ const wf=document.getElementById('wedstrijdFile');if(wf)wf.onchange=e=>importSheet(e.target.files[0],'wedstrijden');
+ const pf=document.getElementById('spelersFile');if(pf)pf.onchange=e=>importSheet(e.target.files[0],'spelers');
+ const lf=document.getElementById('licentieFile');if(lf)lf.onchange=e=>importSheet(e.target.files[0],'licenties');
+ const omf=document.getElementById('openMatchForm');if(omf)omf.onclick=()=>openMatchDialog();
+ const opf=document.getElementById('openPlayerForm');if(opf)opf.onclick=()=>openPlayerDialog();
+ document.querySelectorAll('[data-edit-match]').forEach(b=>b.onclick=()=>openMatchDialog(b.dataset.editMatch));
+ document.querySelectorAll('[data-delete-match]').forEach(b=>b.onclick=()=>deleteMatch(b.dataset.deleteMatch));
+ const _dam=document.getElementById('deleteAllMatchesBtn');if(_dam)_dam.onclick=deleteAllMatches;
+ const _dap=document.getElementById('deleteAllPlayersBtn');if(_dap)_dap.onclick=deleteAllPlayers;
+ document.querySelectorAll('[data-player-status]').forEach(s=>s.onchange=()=>changePlayerStatus(s.dataset.playerStatus,s.value));
+ document.querySelectorAll('[data-player-role]').forEach(s=>s.onchange=()=>{const p=player(s.dataset.playerRole);if(p){p.role=s.value;saveAll();toast('Rol bijgewerkt')}});
+ document.querySelectorAll('[data-player-reason]').forEach(i=>i.onchange=()=>{const p=player(i.dataset.playerReason);if(p){p.reason=i.value;saveAll();toast('Reden opgeslagen')}});
+ document.querySelectorAll('[data-edit-player]').forEach(b=>b.onclick=()=>openPlayerDialog(b.dataset.editPlayer));
+ document.querySelectorAll('[data-delete-player]').forEach(b=>b.onclick=()=>deletePlayer(b.dataset.deletePlayer));
+ document.querySelectorAll('[data-row-player]').forEach(r=>r.onclick=e=>{if(e.target.closest('select,input,button'))return;if(window.innerWidth<=760||e.target.closest('.cell-name'))openPlayerDialog(r.dataset.rowPlayer)});
+ const _ps=document.getElementById('playerSearch');if(_ps)_ps.oninput=()=>{app.playerFilter=_ps.value;const v=_ps.value;render();const el=document.getElementById('playerSearch');if(el){el.focus();el.value=v;el.setSelectionRange(v.length,v.length)}};
+ const _ft=document.getElementById('fTeam');if(_ft)_ft.onchange=()=>{app.spelerFilters.team=_ft.value;render()};
+ const _fr=document.getElementById('fRol');if(_fr)_fr.onchange=()=>{app.spelerFilters.rol=_fr.value;render()};
+ const _fn=document.getElementById('fNiveau');if(_fn)_fn.onchange=()=>{app.spelerFilters.niveau=_fn.value;render()};
+ const _fst=document.getElementById('fStatus');if(_fst)_fst.onchange=()=>{app.spelerFilters.status=_fst.value;render()};
+ const _cf=document.getElementById('clearFilters');if(_cf)_cf.onclick=()=>{app.spelerFilters={team:'',rol:'',niveau:'',status:''};render()};
+ document.querySelectorAll('[data-player-niveau]').forEach(s=>s.onchange=()=>{const p=player(s.dataset.playerNiveau);if(p){p.license=s.value;saveAll();toast('Niveau bijgewerkt')}});
+ const _opf2=document.getElementById('openPouleForm');if(_opf2)_opf2.onclick=()=>openPouleDialog();
+ const _opi=document.getElementById('openPouleImport');if(_opi)_opi.onclick=()=>openPouleImport();
+ document.querySelectorAll('[data-edit-poule]').forEach(b=>b.onclick=()=>openPouleDialog(b.dataset.editPoule));
+ document.querySelectorAll('[data-delete-poule]').forEach(b=>b.onclick=()=>deletePoule(b.dataset.deletePoule));
+ document.querySelectorAll('[data-poule-row]').forEach(r=>r.onclick=e=>{if(e.target.closest('button,a'))return;openPouleDialog(r.dataset.pouleRow)});
+ const _pus=document.getElementById('pouleSearch');if(_pus)_pus.oninput=()=>{app.pouleFilter=_pus.value;const v=_pus.value;render();const el=document.getElementById('pouleSearch');if(el){el.focus();el.value=v;el.setSelectionRange(v.length,v.length)}};
+ document.querySelectorAll('[data-assign-role]').forEach(s=>s.onchange=()=>assignRole(s.dataset.assignMatch,s.dataset.assignRole,s.value));
+ document.querySelectorAll('.cell-search').forEach(inp=>inp.oninput=()=>showSuggest(inp));
+ document.querySelectorAll('[data-clear-role]').forEach(b=>b.onclick=()=>assignRole(b.dataset.clearMatch,b.dataset.clearRole,''));
+ document.querySelectorAll('[data-auto-match]').forEach(b=>b.onclick=()=>autoAssign(b.dataset.autoMatch));
+ document.querySelectorAll('[data-toggle-match]').forEach(h=>h.onclick=()=>{const id=h.dataset.toggleMatch;const m=app.data.wedstrijden.find(w=>w.id===id);app.openMatches[id]=!matchOpen(m);render()});
+ document.querySelectorAll('[data-clearfull-match]').forEach(b=>b.onclick=()=>clearMatchAssignment(b.dataset.clearfullMatch));
+ const _cwk=document.getElementById('clearWeekBtn');if(_cwk)_cwk.onclick=()=>clearWeekAssignment(app.weekOffset);
+ const _call=document.getElementById('clearAllBtn');if(_call)_call.onclick=clearAllAssignment;
+ const _exp=document.getElementById('expandAllBtn');if(_exp)_exp.onclick=()=>{const wk=matchesInRange();const anyClosed=wk.some(m=>!matchOpen(m));wk.forEach(m=>app.openMatches[m.id]=anyClosed);render()};
+ document.querySelectorAll('[data-pdf-match]').forEach(b=>b.onclick=()=>exportPdf(b.dataset.pdfMatch));
+ document.querySelectorAll('[data-copy-match]').forEach(b=>b.onclick=()=>{const m=app.data.wedstrijden.find(w=>w.id===b.dataset.copyMatch);navigator.clipboard.writeText(copyText([m])).then(()=>toast('Wedstrijd gekopieerd'))});
+ const _bulkBtn=document.getElementById('bulkWeekBtn');if(_bulkBtn)_bulkBtn.onclick=()=>autoAssignWeek(app.weekOffset);
+ const _rf=document.getElementById('rangeFrom');const _rt=document.getElementById('rangeTo');const _rfT=document.getElementById('rangeFromText');const _rtT=document.getElementById('rangeToText');
+ if(_rf)_rf.onchange=()=>{if(_rf.value){app.rangeFrom=_rf.value}render()};
+ if(_rt)_rt.onchange=()=>{if(_rt.value){app.rangeTo=_rt.value}render()};
+ if(_rfT)_rfT.onchange=()=>{const iso=parseDateInput(_rfT.value);if(iso===null){toast('Ongeldige datum — gebruik dd-mm-jjjj');render();return}if(iso)app.rangeFrom=iso;render()};
+ if(_rtT)_rtT.onchange=()=>{const iso=parseDateInput(_rtT.value);if(iso===null){toast('Ongeldige datum — gebruik dd-mm-jjjj');render();return}if(iso)app.rangeTo=iso;render()};
+ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
+ const _bulkRange=document.getElementById('bulkRangeBtn');if(_bulkRange)_bulkRange.onclick=autoAssignRange;
+ const _copyRange=document.getElementById('copyRangeBtn');if(_copyRange)_copyRange.onclick=()=>navigator.clipboard.writeText(copyText(matchesInRange())).then(()=>toast('Periode gekopieerd'));
+ const _clearRange=document.getElementById('clearRangeBtn');if(_clearRange)_clearRange.onclick=clearRangeAssignment;
+ const _cwBtn=document.getElementById('copyWeekBtn');if(_cwBtn)_cwBtn.onclick=()=>navigator.clipboard.writeText(copyText(app.data.wedstrijden.filter(w=>inWeek(w.date,app.weekOffset)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time)))).then(()=>toast('Week gekopieerd'));
+ const _pts=document.getElementById('pdfTeamSelect');if(_pts)_pts.onchange=()=>{app.pdfTeam=_pts.value};
+ const _ptb=document.getElementById('pdfTeamBtn');if(_ptb)_ptb.onclick=()=>exportTeamPdf(app.pdfTeam);
+ const _ics=document.getElementById('icsBtn');if(_ics)_ics.onclick=exportICS;
+ document.querySelectorAll('[data-hist-sort]').forEach(b=>b.onclick=()=>{app.historySort=b.dataset.histSort;render()});
+ document.querySelectorAll('[data-hist-person]').forEach(el=>el.onclick=()=>{const id=el.dataset.histPerson;app.openPlayers[id]=!app.openPlayers[id];render()});
+ const _ehBtn=document.getElementById('exportHistoryBtn');if(_ehBtn)_ehBtn.onclick=exportHistory;
+ const _archBtn=document.getElementById('archiveBtn');if(_archBtn)_archBtn.onclick=archiveSeason;
+ const _lo=document.getElementById('logoutBtn');if(_lo)_lo.onclick=logout;
+ const _viInput=document.getElementById('verenigingInput');if(_viInput)_viInput.onchange=()=>{app.data.instellingen.vereniging=_viInput.value;saveAll();toast('Instellingen opgeslagen')};
+ const _siInput=document.getElementById('seizoenInput');if(_siInput)_siInput.onchange=()=>{app.data.instellingen.seizoen=_siInput.value;saveAll();toast('Instellingen opgeslagen')};
+ const _mxInput=document.getElementById('maxTakenInput');if(_mxInput)_mxInput.onchange=()=>{const v=parseInt(_mxInput.value,10);app.data.instellingen.maxTaken=isNaN(v)?5:Math.max(0,v);saveAll();toast(app.data.instellingen.maxTaken?('Maximum: '+app.data.instellingen.maxTaken+' taken per speler'):'Geen maximum meer')};
+ document.querySelectorAll('[data-toggle24-match]').forEach(b=>b.onclick=()=>toggle24(b.dataset.toggle24Match));
+ document.querySelectorAll('[data-lic-role]').forEach(s=>s.onchange=()=>setRefLic(s.dataset.licMatch,s.dataset.licRole,s.value));
+}
+function openMatchDialog(id){const m=app.data.wedstrijden.find(x=>x.id===id)||{id:null,date:'',time:'19:00',homeTeam:'',awayTeam:''};matchDialog.innerHTML=`<form method="dialog" class="modal"><h3>${id?'Wedstrijd bewerken':'Wedstrijd toevoegen'}</h3><div class="form-grid"><div><label class="small faint">Datum</label><input id="mdDate" type="date" value="${esc(m.date)}"></div><div><label class="small faint">Tijd</label><input id="mdTime" type="time" value="${esc(m.time)}"></div><div><label class="small faint">Thuisteam</label><input id="mdHome" type="text" value="${esc(m.homeTeam)}"></div><div><label class="small faint">Tegenstander</label><input id="mdAway" type="text" value="${esc(m.awayTeam)}"></div></div><div class="toolbar" style="margin-top:1rem"><button class="btn" id="saveMatchDialogBtn" type="button">Opslaan</button><button class="btn ghost" type="submit">Sluiten</button></div></form>`;matchDialog.showModal();bindEnterSave(matchDialog,'saveMatchDialogBtn');document.getElementById('saveMatchDialogBtn').onclick=()=>{const obj={id:m.id||uid(),date:mdDate.value,time:mdTime.value,homeTeam:mdHome.value.trim(),awayTeam:mdAway.value.trim()};if(!obj.date||!obj.homeTeam)return alert('Datum en thuisteam zijn verplicht');if(m.id){const idx=app.data.wedstrijden.findIndex(x=>x.id===m.id);app.data.wedstrijden[idx]=obj}else app.data.wedstrijden.push(obj);saveAll();matchDialog.close();render();toast('Wedstrijd opgeslagen')}}
+function deleteMatch(id){const m=app.data.wedstrijden.find(x=>x.id===id);if(!m)return;if(!confirm(`Wedstrijd ${m.homeTeam} vs ${m.awayTeam} verwijderen?`))return;app.data.wedstrijden=app.data.wedstrijden.filter(x=>x.id!==id);delete app.data.indeling[id];updateCounts();saveAll();render();toast('Wedstrijd verwijderd')}
+function deleteAllMatches(){if(!app.data.wedstrijden.length)return toast('Er zijn geen wedstrijden');if(!confirm(`Alle ${app.data.wedstrijden.length} wedstrijden verwijderen? Ook de bijbehorende indelingen worden gewist. Spelers blijven staan.`))return;app.data.wedstrijden=[];app.data.indeling={};app.selectedMatchId=null;updateCounts();saveAll();render();toast('Alle wedstrijden verwijderd')}
+function deleteAllPlayers(){if(!app.data.spelers.length)return toast('Er zijn geen spelers');if(!confirm(`Alle ${app.data.spelers.length} spelers verwijderen? Bestaande indelingen worden hierbij gewist. Wedstrijden blijven staan.`))return;app.data.spelers=[];app.data.indeling={};updateCounts();saveAll();render();toast('Alle spelers verwijderd')}
+function openPlayerDialog(id){const p=app.data.spelers.find(x=>x.id===id)||{id:null,voornaam:'',tussenvoegsel:'',achternaam:'',team:'',role:'beide',license:'',status:'available',reason:''};playerDialog.innerHTML=`<form method="dialog" class="modal"><h3>${id?'Speler bewerken':'Speler toevoegen'}</h3><div class="form-grid"><div><label class="small faint">Voornaam</label><input id="pdVoornaam" type="text" value="${esc(p.voornaam||'')}"></div><div><label class="small faint">Tussenvoegsel</label><input id="pdTussen" type="text" value="${esc(p.tussenvoegsel||'')}" placeholder="bv. van der"></div><div><label class="small faint">Achternaam</label><input id="pdAchternaam" type="text" value="${esc(p.achternaam||'')}"></div><div><label class="small faint">Team(s)</label><div class="chip-input" id="pdTeamChips">${teamChipsHtml(playerTeams(p),p.coachTeams)}<input type="text" class="tchip-inp" placeholder="Team toevoegen + Enter"></div></div><div><label class="small faint">Rol</label><select id="pdRole"><option ${p.role==='scheidsrechter'?'selected':''}>scheidsrechter</option><option ${p.role==='jury'?'selected':''}>jury</option><option ${p.role==='beide'?'selected':''}>beide</option></select></div><div><label class="small faint">Niveau / licentie</label><select id="pdLicense"><option value="" ${!p.license?'selected':''}>Geen</option><option value="Beginner" ${p.license==='Beginner'?'selected':''}>Beginner</option><option value="Gevorderd" ${p.license==='Gevorderd'?'selected':''}>Gevorderd</option><option value="Ervaren" ${p.license==='Ervaren'?'selected':''}>Ervaren</option><option value="BS2" ${p.license==='BS2'?'selected':''}>BS2 (licentie)</option><option value="BS3" ${p.license==='BS3'?'selected':''}>BS3 (licentie)</option></select></div><div><label class="small faint">Status</label><select id="pdStatus"><option value="available" ${p.status==='available'?'selected':''}>Beschikbaar</option><option value="unavailable" ${p.status==='unavailable'?'selected':''}>Niet beschikbaar</option><option value="inactive" ${p.status==='inactive'?'selected':''}>Inactief</option></select></div><div style="grid-column:1/-1"><label class="small faint">Reden</label><input id="pdReason" type="text" value="${esc(p.reason)}"></div><div style="grid-column:1/-1"><label class="small faint">Beschikbaar op (optioneel — één moment per regel)</label><textarea id="pdBeschikbaar" rows="4" style="width:100%" placeholder="2026-09-12 na&#10;2026-10-10 18:15&#10;2026-11-28 voor of na">${esc(availabilityText(p))}</textarea><span class="hint">Leeg = de normale regels. Vul je dit in, dan is deze speler <b>alleen</b> op deze momenten inzetbaar en hoeft zijn eigen team die dag niet thuis te spelen. Per regel: een datum, gevolgd door <code>na</code> of <code>voor</code> (ten opzichte van de eigen wedstrijd), een tijd als <code>18:15</code>, of <code>voor of na</code> voor de hele dag.</span></div></div><div class="toolbar" style="margin-top:1rem"><button class="btn" id="savePlayerDialogBtn" type="button">Opslaan</button><button class="btn ghost" type="submit">Sluiten</button>${id?'<button class="btn danger-ghost" id="deletePlayerDialogBtn" type="button" style="margin-left:auto">Verwijderen</button>':''}</div></form>`;playerDialog.showModal();bindEnterSave(playerDialog,'savePlayerDialogBtn');bindTeamChips('pdTeamChips');document.getElementById('savePlayerDialogBtn').onclick=()=>{const _teams=collectTeamChips('pdTeamChips');const obj={id:p.id||uid(),voornaam:pdVoornaam.value.trim(),tussenvoegsel:pdTussen.value.trim(),achternaam:pdAchternaam.value.trim(),team:_teams.teams[0]||'',teams:_teams.teams,coachTeams:_teams.coachTeams,role:pdRole.value,license:pdLicense.value,status:pdStatus.value,reason:pdReason.value.trim(),beschikbaar:parseAvailability(document.getElementById('pdBeschikbaar')?document.getElementById('pdBeschikbaar').value:'')};if(!obj.beschikbaar.length)delete obj.beschikbaar;if(!obj.voornaam&&!obj.achternaam)return alert('Vul minimaal een voornaam of achternaam in');obj.name=fullName(obj);if(p.id){const idx=app.data.spelers.findIndex(x=>x.id===p.id);app.data.spelers[idx]=obj}else app.data.spelers.push(obj);saveAll();playerDialog.close();render();toast('Speler opgeslagen')};const _dp=document.getElementById('deletePlayerDialogBtn');if(_dp)_dp.onclick=()=>{playerDialog.close();deletePlayer(p.id)}}
+function deletePlayer(id){const p=player(id);if(!p)return;if(!confirm(`${fullName(p)} verwijderen? Bestaande indelingen met deze speler worden gewist.`))return;Object.keys(app.data.indeling).forEach(mid=>{const asg=app.data.indeling[mid];Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]})});app.data.spelers=app.data.spelers.filter(x=>x.id!==id);updateCounts();saveAll();render();toast('Speler verwijderd')}
+function afwRowInner(from,to){return `<input type="date" class="afw-from" value="${esc(from||'')}"><span class="faint" style="font-size:12px">t/m</span><input type="date" class="afw-to" value="${esc(to||'')}"><button type="button" class="icon-btn danger afw-del" title="Periode verwijderen"><i data-lucide="x"></i></button>`;}
+function bindAfwDelDlg(){pouleDialog.querySelectorAll('.afw-del').forEach(b=>b.onclick=()=>b.closest('.afw-row').remove());}
+function bindAfwAddDlg(){document.getElementById('afwAdd').onclick=()=>{const div=document.createElement('div');div.className='afw-row';div.innerHTML=afwRowInner('','');document.getElementById('afwList').appendChild(div);bindAfwDelDlg();try{if(window.lucide&&lucide.createIcons)lucide.createIcons()}catch(e){}};}
+function collectAfw(){return [...pouleDialog.querySelectorAll('.afw-row')].map(r=>({from:r.querySelector('.afw-from').value,to:r.querySelector('.afw-to').value||r.querySelector('.afw-from').value})).filter(r=>r.from);}
+function openPouleDialog(id){
+  const rec=(app.data.poule||[]).find(x=>x.id===id);
+  const linked=id?player(id):null;
+  const afwRows=((rec&&rec.afwezig)||[]).map(r=>`<div class="afw-row">${afwRowInner(r.from,r.to)}</div>`).join('');
+  if(linked){
+    const per=linked;
+    pouleDialog.innerHTML=`<form method="dialog" class="modal"><h3>Poule-scheidsrechter</h3><p class="small faint" style="margin:0 0 12px">Gekoppeld aan speler <b>${esc(fullName(per))}</b> — team(s): ${esc(playerTeams(per).join(', ')||'—')} · niveau: ${per.license?esc(per.license):'geen'}.<br>Pas naam, team of niveau aan via het tabblad <b>Spelers</b>.</p><div><label class="small faint">Afwezig / vakantie (periodes)</label><div id="afwList">${afwRows}</div><button type="button" class="btn ghost" id="afwAdd" style="margin-top:8px"><i data-lucide="plus"></i> Periode toevoegen</button></div><div class="toolbar" style="margin-top:1rem"><button class="btn" id="savePouleBtn" type="button">Opslaan</button><button class="btn ghost" type="submit">Sluiten</button><button class="btn danger-ghost" id="deletePouleBtn" type="button" style="margin-left:auto">Uit poule halen</button></div></form>`;
+    pouleDialog.showModal();try{if(window.lucide&&lucide.createIcons)lucide.createIcons()}catch(e){}
+    bindAfwDelDlg();bindAfwAddDlg();
+    document.getElementById('savePouleBtn').onclick=()=>{const idx=app.data.poule.findIndex(x=>x.id===id);if(idx>=0)app.data.poule[idx]={id,linked:true,afwezig:collectAfw()};saveAll();pouleDialog.close();render();toast('Opgeslagen')};
+    document.getElementById('deletePouleBtn').onclick=()=>{pouleDialog.close();deletePoule(id)};
+    return;
+  }
+  const p=rec||{id:null,voornaam:'',tussenvoegsel:'',achternaam:'',teams:[],license:'',afwezig:[]};
+  const NIV=['Beginner','Gevorderd','Ervaren','BS2','BS3'];
+  pouleDialog.innerHTML=`<form method="dialog" class="modal"><h3>${id?'Scheidsrechter bewerken':'Externe scheidsrechter'}</h3><div class="form-grid"><div><label class="small faint">Voornaam</label><input id="puVoornaam" type="text" value="${esc(p.voornaam||'')}"></div><div><label class="small faint">Tussenvoegsel</label><input id="puTussen" type="text" value="${esc(p.tussenvoegsel||'')}" placeholder="bv. van der"></div><div><label class="small faint">Achternaam</label><input id="puAchternaam" type="text" value="${esc(p.achternaam||'')}"></div><div><label class="small faint">Team(s) waarin hij/zij speelt</label><div class="chip-input" id="puTeamChips">${teamChipsHtml(playerTeams(p),p.coachTeams)}<input type="text" class="tchip-inp" placeholder="Team toevoegen + Enter"></div></div><div><label class="small faint">Niveau / licentie</label><select id="puLicense"><option value="" ${!p.license?'selected':''}>Geen</option>${NIV.map(n=>`<option value="${n}" ${p.license===n?'selected':''}>${n}</option>`).join('')}</select></div></div><div style="margin-top:1rem"><label class="small faint">Afwezig / vakantie (periodes)</label><div id="afwList">${afwRows}</div><button type="button" class="btn ghost" id="afwAdd" style="margin-top:8px"><i data-lucide="plus"></i> Periode toevoegen</button></div><div class="toolbar" style="margin-top:1rem"><button class="btn" id="savePouleBtn" type="button">Opslaan</button><button class="btn ghost" type="submit">Sluiten</button>${id?'<button class="btn danger-ghost" id="deletePouleBtn" type="button" style="margin-left:auto">Verwijderen</button>':''}</div></form>`;
+  pouleDialog.showModal();try{if(window.lucide&&lucide.createIcons)lucide.createIcons()}catch(e){}
+  bindAfwDelDlg();bindAfwAddDlg();bindTeamChips('puTeamChips');
+  document.getElementById('savePouleBtn').onclick=()=>{const _teams=collectTeamChips('puTeamChips');const obj={id:p.id||uid(),voornaam:puVoornaam.value.trim(),tussenvoegsel:puTussen.value.trim(),achternaam:puAchternaam.value.trim(),team:_teams.teams[0]||'',teams:_teams.teams,coachTeams:_teams.coachTeams,license:puLicense.value,afwezig:collectAfw()};if(!obj.voornaam&&!obj.achternaam)return alert('Vul minimaal een voornaam of achternaam in');obj.name=fullName(obj);app.data.poule=app.data.poule||[];if(p.id){const idx=app.data.poule.findIndex(x=>x.id===p.id);app.data.poule[idx]=obj}else app.data.poule.push(obj);saveAll();pouleDialog.close();render();toast('Scheidsrechter opgeslagen')};
+  const _dpb=document.getElementById('deletePouleBtn');if(_dpb)_dpb.onclick=()=>{pouleDialog.close();deletePoule(p.id)};
+}
+function openPouleImport(){
+  const inPoule=new Set((app.data.poule||[]).map(x=>x.id));
+  const avail=app.data.spelers.filter(p=>!inPoule.has(p.id)).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+  pouleDialog.innerHTML=`<form method="dialog" class="modal"><h3>Spelers toevoegen aan poule</h3><p class="small faint" style="margin:0 0 10px">Kies spelers die ook als poule-scheidsrechter mogen worden ingedeeld. Hun beurten tellen daarna samen onder één persoon.</p><div class="searchbar" style="margin-bottom:10px"><i data-lucide="search"></i><input id="impSearch" type="search" placeholder="Zoek op naam of team…"></div><div id="impList" style="max-height:48vh;overflow:auto">${avail.map(p=>`<label class="cand" style="cursor:pointer"><input type="checkbox" class="imp-cb" value="${p.id}" style="width:auto;margin-right:8px"><span class="ci"><span class="nm">${esc(fullName(p))}</span><span class="mt">${esc(playerTeams(p).join(', ')||'—')}${p.license?' · '+esc(p.license):''}</span></span></label>`).join('')||'<div class="empty-list">Alle spelers staan al in de poule, of er zijn nog geen spelers.</div>'}</div><div class="toolbar" style="margin-top:1rem"><button class="btn" id="impAddBtn" type="button">Toevoegen</button><button class="btn ghost" type="submit">Annuleren</button></div></form>`;
+  pouleDialog.showModal();try{if(window.lucide&&lucide.createIcons)lucide.createIcons()}catch(e){}
+  const si=document.getElementById('impSearch');if(si)si.oninput=()=>{const t=si.value.toLowerCase();pouleDialog.querySelectorAll('#impList label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(t)?'':'none'})};
+  document.getElementById('impAddBtn').onclick=()=>{const ids=[...pouleDialog.querySelectorAll('.imp-cb:checked')].map(c=>c.value);app.data.poule=app.data.poule||[];let n=0;ids.forEach(pid=>{if(!app.data.poule.some(x=>x.id===pid)){app.data.poule.push({id:pid,linked:true,afwezig:[]});n++;}});if(n){saveAll();}pouleDialog.close();render();toast(n?(n+' speler(s) toegevoegd aan poule'):'Niets geselecteerd')};
+}
+function deletePoule(id){const p=person(id)||pouleMember(id);if(!p)return;if(!confirm(`${fullName(p)} uit de poule verwijderen? Bestaande indelingen via de poule met deze persoon worden gewist.`))return;Object.keys(app.data.indeling).forEach(mid=>{const asg=app.data.indeling[mid];Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]})});app.data.poule=(app.data.poule||[]).filter(x=>x.id!==id);updateCounts();saveAll();render();toast('Uit poule verwijderd')}
+function splitCSV(v){return String(v||'').split(',').map(x=>x.trim()).filter(Boolean)}
+function changePlayerStatus(id,status){const p=player(id);if(!p)return;const today=new Date();today.setHours(0,0,0,0);const futureConflicts=[];if(status!=='available'){app.data.wedstrijden.forEach(w=>{const d=new Date(w.date+'T00:00:00');if(d<today)return;const assigned=Object.values(assignmentFor(w.id)).includes(id);if(assigned)futureConflicts.push(w)})}if(futureConflicts.length){const remove=confirm(`${fullName(p)} staat nog ingepland voor ${futureConflicts.length} toekomstige wedstrijd(en). OK = toekomstige indelingen verwijderen, Annuleren = alleen conflictwaarschuwing tonen.`);if(remove){futureConflicts.forEach(w=>{const asg=assignmentFor(w.id);Object.keys(asg).forEach(k=>{if(asg[k]===id)delete asg[k]});app.data.indeling[w.id]=asg})}}p.status=status;updateCounts();saveAll();toast('Beschikbaarheidsstatus aangepast')}
+function assignRole(matchId,roleKey,playerId){const asg={...assignmentFor(matchId)};if(playerId)asg[roleKey]=playerId;else delete asg[roleKey];app.data.indeling[matchId]=asg;updateCounts();saveAll();render()}
+function toggle24(matchId){const m=app.data.wedstrijden.find(w=>w.id===matchId);if(!m)return;m.extra24=!m.extra24;if(!m.extra24){const asg=app.data.indeling[matchId];if(asg)delete asg.jury3}updateCounts();saveAll();render();toast(m.extra24?'24-seconde operator toegevoegd':'24-seconde operator verwijderd')}
+function setRefLic(matchId,roleKey,val){const m=app.data.wedstrijden.find(w=>w.id===matchId);if(!m)return;m.refLic=m.refLic||{};if(val)m.refLic[roleKey]=val;else delete m.refLic[roleKey];saveAll();render();toast(val?('Licentie-eis '+val+' ingesteld'):'Licentie-eis verwijderd')}
+function clearMatchAssignment(id){const m=app.data.wedstrijden.find(w=>w.id===id);if(!m)return;if(!confirm(`Indeling van ${m.homeTeam} vs ${m.awayTeam} volledig wissen?`))return;delete app.data.indeling[id];updateCounts();saveAll();render();toast('Wedstrijdindeling gewist')}
+function clearWeekAssignment(offset){const wk=app.data.wedstrijden.filter(w=>inWeek(w.date,offset));if(!wk.length)return toast('Geen wedstrijden in deze week');if(!confirm(`Indeling van alle ${wk.length} wedstrijd(en) in deze week wissen?`))return;wk.forEach(w=>delete app.data.indeling[w.id]);updateCounts();saveAll();render();toast('Weekindeling gewist')}
+function clearRangeAssignment(){const ms=matchesInRange();if(!ms.length)return toast('Geen wedstrijden in deze periode');if(!confirm(`Indeling van alle ${ms.length} wedstrijd(en) in deze periode wissen?`))return;ms.forEach(w=>delete app.data.indeling[w.id]);updateCounts();saveAll();render();toast('Periode-indeling gewist')}
+function clearAllAssignment(){if(!confirm('Let op: de VOLLEDIGE indeling van het hele seizoen wordt gewist. Wedstrijden, spelers en profielen blijven staan. Doorgaan?'))return;app.data.indeling={};updateCounts();saveAll();render();toast('Hele indeling gewist')}
+function normalizeDate(v){if(!v)return'';if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v);return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`}const s=String(v).trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const p=s.split(/[-/]/);if(p.length===3){if(p[0].length===4)return `${p[0]}-${p[1].padStart(2,'0')}-${p[2].padStart(2,'0')}`;return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`}return''}
+function normalizeTime(v){if(!v)return'';if(typeof v==='number'){const total=Math.round(v*24*60);return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`}const s=String(v).trim();return s.slice(0,5)}
+function importSheet(file,type){if(!file)return;const r=new FileReader();r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'}),sheet=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{defval:''});if(!rows.length)return toast('Bestand is leeg');openMappingDialog(type,rows)};r.readAsArrayBuffer(file)}
+function openMappingDialog(type,rows){const headers=Object.keys(rows[0]||{});const map=app.data.mappings[type]||{};const fields=type==='wedstrijden'?[['date','Datum'],['time','Tijd'],['homeTeam','Thuisteam'],['awayTeam','Tegenstander']]:type==='licenties'?[['voornaam','Voornaam'],['tussenvoegsel','Tussenvoegsel'],['achternaam','Achternaam'],['name','Volledige naam (optioneel)'],['license','Licentie']]:[['voornaam','Voornaam'],['tussenvoegsel','Tussenvoegsel'],['achternaam','Achternaam'],['name','Volledige naam (optioneel)'],['team','Team'],['role','Rol']];const titel=type==='licenties'?'Licenties koppelen':('Kolomkoppeling '+type);const hint=type==='spelers'?'<p class="small faint" style="margin-top:.5rem">Koppel los Voornaam, Tussenvoegsel en Achternaam. Heb je alleen één naamkolom, koppel die dan aan "Volledige naam"; de app splitst hem dan automatisch. In de app verschijnt altijd de samengevoegde volledige naam.</p>':type==='licenties'?'<p class="small faint" style="margin-top:.5rem">Koppel de naamkolommen (los of als volledige naam) en de licentiekolom. De licentie wordt op naam gekoppeld aan bestaande spelers. Diplomawaarden worden automatisch naar BS2/BS3 vertaald.</p>':'';mappingDialog.innerHTML=`<form method="dialog" class="modal"><h3>${titel}</h3><div class="form-grid">${fields.map(([key,label])=>`<div><label class="small faint">${label}</label><select data-map-field="${key}"><option value="">-- kies kolom --</option>${headers.map(h=>`<option value="${esc(h)}" ${String(map[key]||'').toLowerCase()===String(h).toLowerCase()?'selected':''}>${esc(h)}</option>`).join('')}</select></div>`).join('')}</div>${hint}<div class="toolbar" style="margin-top:1rem"><button class="btn" id="applyMappingBtn" type="button">${type==='licenties'?'Koppelen':'Importeren'}</button><button class="btn ghost" type="submit">Annuleren</button></div></form>`;mappingDialog.showModal();bindEnterSave(mappingDialog,'applyMappingBtn');document.getElementById('applyMappingBtn').onclick=()=>{const mapping={};mappingDialog.querySelectorAll('[data-map-field]').forEach(s=>mapping[s.dataset.mapField]=s.value);app.data.mappings[type]=mapping;applyImport(type,rows,mapping);saveAll();mappingDialog.close();render()}}
+function applyImport(type,rows,mapping){if(type==='wedstrijden'){let overwrites=0,added=0;rows.forEach(r=>{const obj={id:uid(),date:normalizeDate(r[mapping.date]),time:normalizeTime(r[mapping.time]),homeTeam:String(r[mapping.homeTeam]||'').trim(),awayTeam:String(r[mapping.awayTeam]||'').trim()};obj.away=isOurClub(obj.awayTeam)&&!isOurClub(obj.homeTeam);if(!obj.date||!obj.homeTeam)return;const idx=app.data.wedstrijden.findIndex(w=>w.date===obj.date&&w.time===obj.time&&w.homeTeam===obj.homeTeam);if(idx>=0){overwrites++;app.data.wedstrijden[idx]={...app.data.wedstrijden[idx],...obj,id:app.data.wedstrijden[idx].id}}else{app.data.wedstrijden.push(obj);added++}});toast(`${added} wedstrijden toegevoegd, ${overwrites} overschreven`)}else if(type==='licenties'){const norm=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();const byName={};app.data.spelers.forEach(p=>{byName[norm(fullName(p))]=p;const vn=norm((p.voornaam||'')+' '+(p.achternaam||''));if(vn)byName[vn]=byName[vn]||p});let matched=0,unmatched=0;const seen=new Set();rows.forEach(r=>{const losParts=[r[mapping.voornaam],r[mapping.tussenvoegsel],r[mapping.achternaam]].map(x=>String(x||'').trim()).filter(Boolean);const losNoTuss=[r[mapping.voornaam],r[mapping.achternaam]].map(x=>String(x||'').trim()).filter(Boolean);let p=null;if(losParts.length){p=byName[norm(losParts.join(' '))]||byName[norm(losNoTuss.join(' '))]}if(!p){const nm=norm(r[mapping.name]);if(nm)p=byName[nm]}if(!p){if(losParts.length||norm(r[mapping.name]))unmatched++;return}const lvl=mapLicense(r[mapping.license]);if(!seen.has(p.id)){p.license=lvl;seen.add(p.id);matched++}else if(licRank(lvl)>licRank(p.license)){p.license=lvl}});toast(`${matched} licenties gekoppeld${unmatched?(', '+unmatched+' niet gevonden'):''}`)}else{const norm=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();const byName={};app.data.spelers.forEach(p=>{const k=norm(fullName(p));if(k&&!(k in byName))byName[k]=p;});let toegevoegd=0,bijgewerkt=0;rows.forEach(r=>{const vn=String(r[mapping.voornaam]||'').trim();const tv=String(r[mapping.tussenvoegsel]||'').trim();const an=String(r[mapping.achternaam]||'').trim();let voornaam,tussenvoegsel,achternaam;if(vn||tv||an){voornaam=vn;tussenvoegsel=tv;achternaam=an}else{const nm=splitName(r[mapping.name]);voornaam=nm.voornaam;tussenvoegsel=nm.tussenvoegsel;achternaam=nm.achternaam}if(!voornaam&&!achternaam)return;const teams=String(r[mapping.team]||'').split(/[,;/]+/).map(x=>x.trim()).filter(Boolean);const key=norm(fullName({voornaam,tussenvoegsel,achternaam}));const found=byName[key];if(found){if(teams.length){found.team=teams[0];found.teams=teams;}if(!roleNorm(found.role))found.role=roleNorm(r[mapping.role])||roleFromTeam(teams[0]||'');bijgewerkt++;}else{const o={id:uid(),voornaam,tussenvoegsel,achternaam,team:teams[0]||'',teams,role:(roleNorm(r[mapping.role])||roleFromTeam(teams[0]||'')),license:'',status:'available',reason:''};o.name=fullName(o);app.data.spelers.push(o);byName[key]=o;toegevoegd++;}});toast(`Spelers: ${toegevoegd} toegevoegd, ${bijgewerkt} bijgewerkt`)}updateCounts();saveAll()}
+function exportPdf(matchId){const id=typeof matchId==='string'?matchId:app.selectedMatchId;const match=app.data.wedstrijden.find(w=>w.id===id);if(!match)return;const {jsPDF}=window.jspdf;const doc=new jsPDF();doc.setFillColor(255,107,0);doc.rect(0,0,210,20,'F');doc.setTextColor(255,255,255);doc.setFontSize(18);doc.text(app.data.instellingen.vereniging,14,13);doc.setTextColor(0,0,0);doc.setFontSize(12);let y=30;doc.text(`${match.homeTeam} vs. ${match.awayTeam}`,14,y);y+=8;doc.text(`${fmtDate(match.date)} ${match.time}`,14,y);y+=10;rolesFor(match).forEach(r=>{doc.text(`${r.label}: ${assignmentFor(match.id)[r.key]?playerName(assignmentFor(match.id)[r.key]):'-'}`,14,y);y+=8});doc.save(`indeling-${match.homeTeam}.pdf`);toast('PDF geëxporteerd')}
+function exportTeamPdf(team){if(!team)return toast('Kies eerst een team');const teamPlayerIds=new Set(app.data.spelers.filter(p=>playerTeams(p).some(t=>sameTeam(t,team))).map(p=>p.id));const matches=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));const tasks=[];matches.forEach(m=>{const asg=assignmentFor(m.id);rolesFor(m).forEach(r=>{const pid=asg[r.key];if(pid&&teamPlayerIds.has(pid))tasks.push({m,role:r,pid})})});if(!tasks.length)return toast('Geen taken gevonden voor spelers van dit team');const nRef=tasks.filter(t=>t.role.type==='scheidsrechter').length;const nJury=tasks.filter(t=>t.role.type==='jury').length;const {jsPDF}=window.jspdf;const doc=new jsPDF();doc.setFillColor(255,107,0);doc.rect(0,0,210,20,'F');doc.setTextColor(255,255,255);doc.setFontSize(15);doc.text(`${app.data.instellingen.vereniging} — taken ${team}`,14,13);doc.setTextColor(0,0,0);let y=30;doc.setFontSize(11);doc.text(`Seizoen ${app.data.instellingen.seizoen||''}`,14,y);y+=7;doc.text(`Totaal ${tasks.length} taak/taken  ·  ${nRef} scheidsrechter, ${nJury} jury`,14,y);y+=10;doc.setFontSize(10);let lastDay='';tasks.forEach(t=>{if(y>285){doc.addPage();y=20}if(t.m.date!==lastDay){lastDay=t.m.date;doc.setFont(undefined,'bold');if(y>278){doc.addPage();y=20}doc.text(fmtDate(t.m.date),14,y);y+=6;doc.setFont(undefined,'normal')}doc.text(`     ${t.m.time}  ·  ${t.role.label}  ·  ${playerName(t.pid)}  —  ${t.m.homeTeam} vs. ${t.m.awayTeam}`,14,y);y+=6});doc.save(`taken-${team}.pdf`);toast(`PDF met taken voor ${team} geëxporteerd`)}
+function icsStamp(dateStr,hh,mm){return dateStr.replace(/-/g,'')+'T'+String(hh).padStart(2,'0')+String(mm).padStart(2,'0')+'00'}
+function exportICS(){const matches=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));if(!matches.length)return toast('Geen wedstrijden om te exporteren');const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Basketbal Indeling App//NL','CALSCALE:GREGORIAN'];matches.forEach(m=>{const [h,mi]=(m.time||'00:00').split(':').map(Number);const start=icsStamp(m.date,h||0,mi||0);const end=icsStamp(m.date,(h||0)+2,mi||0);const tasks=rolesFor(m).map(r=>{const pid=assignmentFor(m.id)[r.key];return r.label+': '+(pid?playerName(pid):'-')}).join('\\n');lines.push('BEGIN:VEVENT','UID:'+m.id+'@bball-indeling','DTSTART:'+start,'DTEND:'+end,'SUMMARY:'+m.homeTeam+' vs '+m.awayTeam,'DESCRIPTION:'+tasks,'END:VEVENT')});lines.push('END:VCALENDAR');const blob=new Blob([lines.join('\r\n')],{type:'text/calendar'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='basketbal-indeling.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);toast('iCal-bestand geëxporteerd')}
+function exportHistory(){const rows=app.data.spelers.map(p=>{const c=app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};return{Voornaam:p.voornaam||'',Tussenvoegsel:p.tussenvoegsel||'',Achternaam:p.achternaam||'',Speler:fullName(p),Team:p.team,Licentie:p.license||'',Scheidsrechter:c.scheidsrechter,Jury:c.jury,Totaal:c.scheidsrechter+c.jury}});const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Geschiedenis');XLSX.writeFile(wb,'seizoensgeschiedenis.xlsx');toast('Geschiedenis geëxporteerd')}
+function archiveSeason(){const s=app.data.instellingen.seizoen||'Onbekend seizoen';if(!confirm(`Huidige tellingen archiveren als ${s}?`))return;app.data.archief[s]=JSON.parse(JSON.stringify(app.data.tellingen));app.data.tellingen={};saveAll();render();toast('Nieuw seizoen gestart')}
+document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const t=e.target;if(!t||t.tagName!=='INPUT')return;if(t.closest&&t.closest('dialog'))return;e.preventDefault();t.blur();});
+updateCounts();render();
+initCloud();
+
+/* ===== wachtwoordbeveiliging (minimale bescherming) ===== */
+const PW_HASH='f9f1edbdd28589eacca335ded87671fab9efe43a06331e49fa71c9a5af652037';
+const AUTH_KEY='bball_auth';
+async function sha256hex(s){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+function authed(){return localStorage.getItem(AUTH_KEY)===PW_HASH;}
+function showGate(){const g=document.getElementById('authGate');if(g)g.style.display='flex';const i=document.getElementById('authInput');if(i){i.value='';setTimeout(()=>i.focus(),50);}}
+function hideGate(){const g=document.getElementById('authGate');if(g)g.style.display='none';}
+function logout(){localStorage.removeItem(AUTH_KEY);showGate();}
+async function tryUnlock(){const i=document.getElementById('authInput'),err=document.getElementById('authError');if(!i)return;const h=await sha256hex(i.value);if(h===PW_HASH){localStorage.setItem(AUTH_KEY,PW_HASH);if(err)err.style.display='none';hideGate();}else{if(err)err.style.display='block';i.value='';i.focus();}}
+(function initGate(){const btn=document.getElementById('authBtn'),inp=document.getElementById('authInput');if(btn)btn.onclick=tryUnlock;if(inp)inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();tryUnlock();}};if(authed())hideGate();else showGate();})();
+</script>
+
+
+</body></html>
