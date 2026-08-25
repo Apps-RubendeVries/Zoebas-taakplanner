@@ -479,7 +479,24 @@ function parseDateInput(str){str=String(str||'').trim();if(!str)return'';if(/^\d
 function rangeBounds(){let from=app.rangeFrom,to=app.rangeTo;if(!from||!to){const s=weekStart(0),e=new Date(s);e.setDate(e.getDate()+6);from=from||isoLocal(s);to=to||isoLocal(e)}return{from,to}}
 function inRange(dateStr){const {from,to}=rangeBounds();return dateStr>=from&&dateStr<=to}
 function matchesInRange(){return app.data.wedstrijden.filter(w=>!w.away&&inRange(w.date)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time))}
-function applyPreset(p){const s=weekStart(0);if(p==='week'){const e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}else if(p==='2w'){const e=new Date(s);e.setDate(e.getDate()+13);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}else if(p==='4w'){const e=new Date(s);e.setDate(e.getDate()+27);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}else if(p==='all'){const ds=app.data.wedstrijden.map(w=>w.date).filter(Boolean).sort();if(ds.length){app.rangeFrom=ds[0];app.rangeTo=ds[ds.length-1]}}render()}
+// Seizoensjaren: uit het seizoenslabel ("2026-2027"), anders afgeleid uit de wedstrijddata
+function seasonYears(){
+  const m=String(app.data.instellingen.seizoen||'').match(/(\d{4})\D+(\d{4})/);
+  if(m)return {y1:parseInt(m[1],10),y2:parseInt(m[2],10)};
+  const ds=app.data.wedstrijden.map(w=>w.date).filter(Boolean).sort();
+  const najaar=ds.find(d=>parseInt(d.slice(5,7),10)>=9);
+  const y1=najaar?parseInt(najaar.slice(0,4),10):(ds.length?parseInt(ds[0].slice(0,4),10):new Date().getFullYear());
+  return {y1,y2:y1+1};
+}
+function applyPreset(p){
+  const s=weekStart(0);
+  if(p==='week'){const e=new Date(s);e.setDate(e.getDate()+6);app.rangeFrom=isoLocal(s);app.rangeTo=isoLocal(e)}
+  else if(p==='maand'){const n=new Date();const first=new Date(n.getFullYear(),n.getMonth(),1);const last=new Date(n.getFullYear(),n.getMonth()+1,0);app.rangeFrom=isoLocal(first);app.rangeTo=isoLocal(last)}
+  else if(p==='h1'){const {y1}=seasonYears();app.rangeFrom=y1+'-09-01';app.rangeTo=y1+'-12-31'}
+  else if(p==='h2'){const {y2}=seasonYears();app.rangeFrom=y2+'-01-01';app.rangeTo=y2+'-05-31'}
+  else if(p==='all'){const ds=app.data.wedstrijden.map(w=>w.date).filter(Boolean).sort();if(ds.length){app.rangeFrom=ds[0];app.rangeTo=ds[ds.length-1]}}
+  render();
+}
 function licRank(l){return l==='BS3'?5:l==='BS2'?4:l==='Ervaren'?3:l==='Gevorderd'?2:l==='Beginner'?1:0}
 function mapLicense(raw){const v=String(raw||'').toLowerCase().replace(/\s+/g,' ').trim();if(!v)return'';if(v==='bs3')return'BS3';if(v==='bs2')return'BS2';const bs3=['basketbalscheidsrechter 4 in opleiding','basketbalscheidsrechter 3 in opleiding','basketbalscheidsrechter 3','scheidsrechter e-diploma'];const bs2=['basketbalscheidsrechter 2','scheidsrechter f-diploma'];if(bs3.includes(v))return'BS3';if(bs2.includes(v))return'BS2';return''}
 function licenseMeets(playerLic,req){return licRank(playerLic)>=licRank(req)}
@@ -491,6 +508,31 @@ function dayTimes(date){return [...new Set(app.data.wedstrijden.filter(w=>w.date
 // Kleinste verschil in MINUTEN tussen deze taak en een eigen thuiswedstrijd die dag.
 // Tijdslot-afstand telt posities in de lijst met aanvangstijden; door uitwedstrijden van andere teams
 // zitten daar gaten in, waardoor "4 slots" en "6 slots" allebei als 'ver weg' golden. Minuten zijn eerlijker.
+// Hoeveel wedstrijden zit de dichtstbijzijnde eigen thuiswedstrijd van deze taak af?
+// Geteld in tijdsloten in onze eigen hal: het slot direct ernaast is 1 wedstrijd.
+function teamGapMatches(teams,match){
+  let best=null;
+  app.data.wedstrijden.forEach(w=>{
+    if(w.date!==match.date||w.away||!String(w.time||'').trim())return;
+    if(!teams.some(t=>sameTeam(w.homeTeam,t)))return;
+    const eigen=toMin(w.time),taak=toMin(match.time);
+    if(eigen===taak)return;
+    const lo=Math.min(eigen,taak),hi=Math.max(eigen,taak);
+    const tussen=new Set();
+    app.data.wedstrijden.forEach(w2=>{
+      if(w2.date!==match.date||w2.away||!String(w2.time||'').trim())return;
+      const t2=toMin(w2.time);if(t2>lo&&t2<hi)tussen.add(t2);
+    });
+    const n=tussen.size+1;
+    if(best===null||n<best.aantal)best={aantal:n,later:eigen>taak};
+  });
+  return best;
+}
+function gapLabel(teams,match){
+  const g=teamGapMatches(teams,match);
+  if(!g)return 'team speelt niet vlak voor/na';
+  return 'eigen wedstrijd '+g.aantal+' wedstrijd'+(g.aantal===1?'':'en')+(g.later?' later':' eerder');
+}
 function teamGapMinutes(teams,match){
   let best=null;
   app.data.wedstrijden.forEach(w=>{
@@ -652,11 +694,10 @@ function computeHalfYear(){const since=halfYearSince();const counts={};app.data.
 function overAvg(id){if(isPoule(id))return false;const hy=app._hy||(app._hy=computeHalfYear());const c=hy.counts[id]||0;return c>4;}
 // Strafpunten voor de afstand tot de eigen wedstrijd. Tot 2 uur = aansluitend, daarna loopt het
 // geleidelijk op, zodat wie 2 uur moet wachten altijd vóór iemand van 4 uur komt.
-function gapPenalty(gapMin,reasons){
+function gapPenalty(gapMin,reasons,teams,match){
   if(gapMin===null){reasons.push('Team speelt niet vlak voor/na');return 50}
   if(gapMin<=120)return 0;
-  const uren=Math.round(gapMin/6)/10;
-  reasons.push('Team speelt '+String(uren).replace('.',',')+' uur ervoor/erna');
+  reasons.push(gapLabel(teams,match));
   return 20+Math.round((gapMin-120)/15);
 }
 function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
@@ -705,12 +746,12 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
         // overrulen: het telt pas mee als het aantal beurten gelijk is (zie sortering onderaan).
         if(otherRefPid){const _op=person(otherRefPid);const otherRank=_op?licRank(_op.license):0;if(otherRank<=1&&licRank(p.license)<=1){koppel=1;reasons.push('Twee onervaren scheidsrechters')}}
         // VOORKEUR: team speelt 1 tijdslot voor/na (ideaal) of 2 (oké), anders toegestaan maar minder gewenst
-        if(playsToday&&!playsNow&&!eigenLijst)score+=gapPenalty(gapMin,reasons);
+        if(playsToday&&!playsNow&&!eigenLijst)score+=gapPenalty(gapMin,reasons,teams,match);
       }else{
         const _adj=dichtbij; tier=(roleNorm(p.role)==='jury')?(_adj?0:2):(_adj?1:3); // 1 wedstrijd afstand = uitgangspunt; geen jury-only binnen 1 -> 'beide' met laagste licentie
         score+=licRank(p.license)*4; // bewaar hogere licenties voor scheidsrechteren
         // VOORKEUR: zelfde tijdslot-regel voor juryleden
-        if(playsToday&&!playsNow&&!eigenLijst){score+=gapPenalty(gapMin,reasons);if(dichtbij&&juryTeamsUsed.includes(normTeam(p.team)))score-=10}
+        if(playsToday&&!playsNow&&!eigenLijst){score+=gapPenalty(gapMin,reasons,teams,match);if(dichtbij&&juryTeamsUsed.includes(normTeam(p.team)))score-=10}
       }
       if(sameDayElsewhere(p.id,match,tempIndeling)){hard=true;score+=1000;reasons.push('Al een taak vandaag')} // max 1 taak per dag (poule uitgezonderd)
       // HARDE regel: seizoensmaximum aantal taken bereikt
@@ -833,7 +874,7 @@ function render(){try{localStorage.setItem('bball_tab',app.tab)}catch(e){}app._h
 /* ===== redesign view layer (new look, original logic) ===== */
 function initials(p){const f=fullName(p);const parts=String(f||'').split(' ').filter(Boolean);if(!parts.length)return '?';const a=parts[0][0]||'';const b=parts.length>1?parts[parts.length-1][0]:'';return (a+b).toUpperCase();}
 function weekdayAbbr(date){const d=new Date(date+'T00:00:00');return isNaN(d)?'':d.toLocaleDateString('nl-NL',{weekday:'short'}).replace('.','');}
-function slotWarns(pid,match,role){const w=[];if(!pid)return w;const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(overAvg(pid))w.push({sev:'warn',label:'vaak ingedeeld'});if(isPoule(pid)){const rec=pouleMember(pid);if(!rec)return w;const p=person(pid)||rec;if(onVacation(rec,match.date))w.push({sev:'block',label:'afwezig'});if(tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(weekAssignCount(pid,match.date,null,match.id)>=2)w.push({sev:'block',label:'al 2× deze week'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else{const g=dayGapForPerson(pid,match,null);if(g!==null&&g>=3)w.push({sev:'warn',label:'niet aansluitend'});}if(app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>(!w2.away&&sameTeam(w2.homeTeam,t))||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(awayClash(p,match))w.push({sev:'block',label:'uitwedstrijd binnen 4 uur'});{const _mp=maxPouleTasks();if(_mp&&pouleHalfCount(pid,match.date,null,match.id)>=_mp)w.push({sev:'block',label:'max '+_mp+' per seizoenshelft'});}if(reqLic&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}const p=player(pid);if(p){if(!roleNorm(p.role))w.push({sev:'block',label:'geen rol'});else if(!roleEligible(p.role,role.type))w.push({sev:'block',label:'rol past niet'});}if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(p&&tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(p&&availabilityFor(p).length){if(notAvailable(p,match))w.push({sev:'block',label:'buiten eigen beschikbaarheid'});}else{if(p&&!playerTeams(p).some(t=>teamPlaysOnDay(t,match.date)))w.push({sev:'block',label:'team speelt niet die dag'});if(p&&playerTeams(p).some(t=>teamPlaysAwayOnDay(t,match.date)))w.push({sev:'block',label:'eigen team speelt uit'});}if(p&&role.type==='scheidsrechter'&&tooYoungForSeniorRef(p,match))w.push({sev:'block',label:'onder 18 bij U22/senioren'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(sameDayElsewhere(pid,match,null))w.push({sev:'block',label:'al een taak vandaag'});if(p&&app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>(!w2.away&&sameTeam(w2.homeTeam,t))||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});if(p&&!w.some(x=>x.sev==='block')){const g=teamGapMinutes(playerTeams(p),match);if(g!==null&&g>120)w.push({sev:'warn',label:String(Math.round(g/6)/10).replace('.',',')+' uur voor/na eigen wedstrijd'});}return w;}
+function slotWarns(pid,match,role){const w=[];if(!pid)return w;const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(overAvg(pid))w.push({sev:'warn',label:'vaak ingedeeld'});if(isPoule(pid)){const rec=pouleMember(pid);if(!rec)return w;const p=person(pid)||rec;if(onVacation(rec,match.date))w.push({sev:'block',label:'afwezig'});if(tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(weekAssignCount(pid,match.date,null,match.id)>=2)w.push({sev:'block',label:'al 2× deze week'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else{const g=dayGapForPerson(pid,match,null);if(g!==null&&g>=3)w.push({sev:'warn',label:'niet aansluitend'});}if(app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>(!w2.away&&sameTeam(w2.homeTeam,t))||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(awayClash(p,match))w.push({sev:'block',label:'uitwedstrijd binnen 4 uur'});{const _mp=maxPouleTasks();if(_mp&&pouleHalfCount(pid,match.date,null,match.id)>=_mp)w.push({sev:'block',label:'max '+_mp+' per seizoenshelft'});}if(reqLic&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}const p=player(pid);if(p){if(!roleNorm(p.role))w.push({sev:'block',label:'geen rol'});else if(!roleEligible(p.role,role.type))w.push({sev:'block',label:'rol past niet'});}if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(p&&tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(p&&availabilityFor(p).length){if(notAvailable(p,match))w.push({sev:'block',label:'buiten eigen beschikbaarheid'});}else{if(p&&!playerTeams(p).some(t=>teamPlaysOnDay(t,match.date)))w.push({sev:'block',label:'team speelt niet die dag'});if(p&&playerTeams(p).some(t=>teamPlaysAwayOnDay(t,match.date)))w.push({sev:'block',label:'eigen team speelt uit'});}if(p&&role.type==='scheidsrechter'&&tooYoungForSeniorRef(p,match))w.push({sev:'block',label:'onder 18 bij U22/senioren'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(sameDayElsewhere(pid,match,null))w.push({sev:'block',label:'al een taak vandaag'});if(p&&app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>(!w2.away&&sameTeam(w2.homeTeam,t))||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});if(p&&!w.some(x=>x.sev==='block')){const g=teamGapMinutes(playerTeams(p),match);if(g!==null&&g>120)w.push({sev:'warn',label:gapLabel(playerTeams(p),match)});}return w;}
 function mBlock(match){return rolesFor(match).some(r=>{const pid=assignmentFor(match.id)[r.key];return pid&&slotWarns(pid,match,r).some(x=>x.sev==='block')});}
 function mStatus(match){const roles=rolesFor(match),asg=assignmentFor(match.id),filled=roles.filter(r=>asg[r.key]).length;if(mBlock(match))return['block','Conflict'];if(filled===0)return['open','Niet ingedeeld'];if(filled===roles.length)return['ok','Volledig'];return['warn',filled+'/'+roles.length+' ingevuld'];}
 
@@ -978,8 +1019,8 @@ const views={
   let totalRoles=0,filled=0,conflicts=0;
   rangeMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
   const pct=totalRoles?Math.round(filled/totalRoles*100):0;
-  const presets=[['week','Deze week'],['2w','Komende 2 weken'],['4w','Komende 4 weken'],['all','Hele seizoen']];
-  const periodbar=`<div class="periodbar"><div class="toprow"><div style="display:flex;flex-direction:column;gap:12px"><div class="seg">${presets.map(([k,l])=>`<button data-preset="${k}">${l}</button>`).join('')}</div><div class="daterow"><span class="lab">Van</span><div class="date-field"><input type="text" id="rangeFromText" value="${nlDate(from)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeFrom" value="${from}" aria-label="Van"></div><span class="lab">Tot</span><div class="date-field"><input type="text" id="rangeToText" value="${nlDate(to)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeTo" value="${to}" aria-label="Tot"></div></div></div><div class="actions"><button class="btn primary" id="bulkRangeBtn"><i data-lucide="wand-2"></i> Hele periode indelen</button><button class="btn secondary" id="checkBtn"><i data-lucide="list-checks"></i> Controleer</button><button class="btn secondary" id="copyRangeBtn"><i data-lucide="clipboard"></i> Kopieer</button><button class="btn danger" id="clearRangeBtn"><i data-lucide="eraser"></i> Wis periode</button></div></div><div class="progress-wrap"><div class="ring" style="--p:${pct}"><div class="inner">${pct}%</div></div><div class="progress-text"><div class="big">${filled} van ${totalRoles} taken ingevuld</div><div class="small">${rangeMatches.length} wedstrijd(en) in deze periode${conflicts>0?` · <b style="color:var(--block)">${conflicts} conflict${conflicts>1?'en':''}</b>`:(rangeMatches.length?' · <b style="color:var(--good)">geen conflicten</b>':'')}</div></div><div style="flex:1"></div><button class="btn danger" id="clearAllBtn" title="Wis hele seizoensindeling"><i data-lucide="trash-2"></i> Wis alles</button></div><div class="hint">Klik op een rol om een persoon te kiezen. In het zijpaneel staan kandidaten gesorteerd op geschiktheid; conflicten en ontbrekende licenties zie je meteen. "Hele periode indelen" vult lege plekken eerlijk in.</div></div>`;
+  const presets=[['week','Deze week'],['maand','Deze maand'],['h1','1e seizoenshelft'],['h2','2e seizoenshelft'],['all','Hele seizoen']];
+  const periodbar=`<div class="periodbar"><div class="toprow"><div style="display:flex;flex-direction:column;gap:12px"><div class="seg">${presets.map(([k,l])=>`<button data-preset="${k}">${l}</button>`).join('')}</div><div class="daterow"><span class="lab">Van</span><div class="date-field"><input type="text" id="rangeFromText" value="${nlDate(from)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeFrom" value="${from}" aria-label="Van"></div><span class="lab">Tot</span><div class="date-field"><input type="text" id="rangeToText" value="${nlDate(to)}" placeholder="dd-mm-jjjj" inputmode="numeric"><input type="date" id="rangeTo" value="${to}" aria-label="Tot"></div></div></div><div class="actions"><button class="btn primary" id="bulkRangeBtn"><i data-lucide="wand-2"></i> Hele periode indelen</button><button class="btn secondary" id="checkBtn"><i data-lucide="list-checks"></i> Controleer</button><button class="btn secondary" id="pdfRangeBtn"><i data-lucide="file-down"></i> PDF periode</button><button class="btn secondary" id="pdfOpenBtn"><i data-lucide="file-warning"></i> PDF open plekken</button><button class="btn secondary" id="xlsRangeBtn"><i data-lucide="sheet"></i> Excel</button><button class="btn secondary" id="copyRangeBtn"><i data-lucide="clipboard"></i> Kopieer</button><button class="btn danger" id="clearRangeBtn"><i data-lucide="eraser"></i> Wis periode</button></div></div><div class="progress-wrap"><div class="ring" style="--p:${pct}"><div class="inner">${pct}%</div></div><div class="progress-text"><div class="big">${filled} van ${totalRoles} taken ingevuld</div><div class="small">${rangeMatches.length} wedstrijd(en) in deze periode${conflicts>0?` · <b style="color:var(--block)">${conflicts} conflict${conflicts>1?'en':''}</b>`:(rangeMatches.length?' · <b style="color:var(--good)">geen conflicten</b>':'')}</div></div><div style="flex:1"></div><button class="btn danger" id="clearAllBtn" title="Wis hele seizoensindeling"><i data-lucide="trash-2"></i> Wis alles</button></div><div class="hint">Klik op een rol om een persoon te kiezen. In het zijpaneel staan kandidaten gesorteerd op geschiktheid; conflicten en ontbrekende licenties zie je meteen. "Hele periode indelen" vult lege plekken eerlijk in.</div></div>`;
   if(!app.data.wedstrijden.length)return periodbar+`<div class="card"><p class="faint">Voeg eerst wedstrijden toe.</p></div>`;
   if(!rangeMatches.length)return periodbar+`<div class="card"><p class="faint">Geen wedstrijden in deze periode. Pas de datums aan of kies een snelknop.</p></div>`;
   const groups={};rangeMatches.forEach(m=>(groups[m.date]=groups[m.date]||[]).push(m));
@@ -1060,6 +1101,9 @@ function bind(){
  document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
  const _bulkRange=document.getElementById('bulkRangeBtn');if(_bulkRange)_bulkRange.onclick=autoAssignRange;
  const _chk=document.getElementById('checkBtn');if(_chk)_chk.onclick=openCheckDialog;
+ const _pdfR=document.getElementById('pdfRangeBtn');if(_pdfR)_pdfR.onclick=()=>exportRangePdf(false);
+ const _pdfO=document.getElementById('pdfOpenBtn');if(_pdfO)_pdfO.onclick=()=>exportRangePdf(true);
+ const _xls=document.getElementById('xlsRangeBtn');if(_xls)_xls.onclick=exportRangeXlsx;
  const _copyRange=document.getElementById('copyRangeBtn');if(_copyRange)_copyRange.onclick=()=>navigator.clipboard.writeText(copyText(matchesInRange())).then(()=>toast('Periode gekopieerd'));
  const _clearRange=document.getElementById('clearRangeBtn');if(_clearRange)_clearRange.onclick=clearRangeAssignment;
  const _cwBtn=document.getElementById('copyWeekBtn');if(_cwBtn)_cwBtn.onclick=()=>navigator.clipboard.writeText(copyText(app.data.wedstrijden.filter(w=>inWeek(w.date,app.weekOffset)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time)))).then(()=>toast('Week gekopieerd'));
@@ -1133,9 +1177,99 @@ function importSheet(file,type){if(!file)return;const r=new FileReader();r.onloa
 function openMappingDialog(type,rows){const headers=Object.keys(rows[0]||{});const map=app.data.mappings[type]||{};const fields=type==='wedstrijden'?[['date','Datum'],['time','Tijd'],['homeTeam','Thuisteam'],['awayTeam','Tegenstander']]:type==='licenties'?[['voornaam','Voornaam'],['tussenvoegsel','Tussenvoegsel'],['achternaam','Achternaam'],['name','Volledige naam (optioneel)'],['license','Licentie']]:[['voornaam','Voornaam'],['tussenvoegsel','Tussenvoegsel'],['achternaam','Achternaam'],['name','Volledige naam (optioneel)'],['team','Team'],['role','Rol']];const titel=type==='licenties'?'Licenties koppelen':('Kolomkoppeling '+type);const hint=type==='spelers'?'<p class="small faint" style="margin-top:.5rem">Koppel los Voornaam, Tussenvoegsel en Achternaam. Heb je alleen één naamkolom, koppel die dan aan "Volledige naam"; de app splitst hem dan automatisch. In de app verschijnt altijd de samengevoegde volledige naam.</p>':type==='licenties'?'<p class="small faint" style="margin-top:.5rem">Koppel de naamkolommen (los of als volledige naam) en de licentiekolom. De licentie wordt op naam gekoppeld aan bestaande spelers. Diplomawaarden worden automatisch naar BS2/BS3 vertaald.</p>':'';mappingDialog.innerHTML=`<form method="dialog" class="modal"><h3>${titel}</h3><div class="form-grid">${fields.map(([key,label])=>`<div><label class="small faint">${label}</label><select data-map-field="${key}"><option value="">-- kies kolom --</option>${headers.map(h=>`<option value="${esc(h)}" ${String(map[key]||'').toLowerCase()===String(h).toLowerCase()?'selected':''}>${esc(h)}</option>`).join('')}</select></div>`).join('')}</div>${hint}<div class="toolbar" style="margin-top:1rem"><button class="btn" id="applyMappingBtn" type="button">${type==='licenties'?'Koppelen':'Importeren'}</button><button class="btn ghost" type="submit">Annuleren</button></div></form>`;mappingDialog.showModal();bindEnterSave(mappingDialog,'applyMappingBtn');document.getElementById('applyMappingBtn').onclick=()=>{const mapping={};mappingDialog.querySelectorAll('[data-map-field]').forEach(s=>mapping[s.dataset.mapField]=s.value);app.data.mappings[type]=mapping;applyImport(type,rows,mapping);saveAll();mappingDialog.close();render()}}
 function applyImport(type,rows,mapping){if(type==='wedstrijden'){let overwrites=0,added=0;rows.forEach(r=>{const obj={id:uid(),date:normalizeDate(r[mapping.date]),time:normalizeTime(r[mapping.time]),homeTeam:String(r[mapping.homeTeam]||'').trim(),awayTeam:String(r[mapping.awayTeam]||'').trim()};obj.away=isOurClub(obj.awayTeam)&&!isOurClub(obj.homeTeam);if(!obj.date||!obj.homeTeam)return;const idx=app.data.wedstrijden.findIndex(w=>w.date===obj.date&&w.time===obj.time&&w.homeTeam===obj.homeTeam);if(idx>=0){overwrites++;app.data.wedstrijden[idx]={...app.data.wedstrijden[idx],...obj,id:app.data.wedstrijden[idx].id}}else{app.data.wedstrijden.push(obj);added++}});toast(`${added} wedstrijden toegevoegd, ${overwrites} overschreven`)}else if(type==='licenties'){const norm=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();const byName={};app.data.spelers.forEach(p=>{byName[norm(fullName(p))]=p;const vn=norm((p.voornaam||'')+' '+(p.achternaam||''));if(vn)byName[vn]=byName[vn]||p});let matched=0,unmatched=0;const seen=new Set();rows.forEach(r=>{const losParts=[r[mapping.voornaam],r[mapping.tussenvoegsel],r[mapping.achternaam]].map(x=>String(x||'').trim()).filter(Boolean);const losNoTuss=[r[mapping.voornaam],r[mapping.achternaam]].map(x=>String(x||'').trim()).filter(Boolean);let p=null;if(losParts.length){p=byName[norm(losParts.join(' '))]||byName[norm(losNoTuss.join(' '))]}if(!p){const nm=norm(r[mapping.name]);if(nm)p=byName[nm]}if(!p){if(losParts.length||norm(r[mapping.name]))unmatched++;return}const lvl=mapLicense(r[mapping.license]);if(!seen.has(p.id)){p.license=lvl;seen.add(p.id);matched++}else if(licRank(lvl)>licRank(p.license)){p.license=lvl}});toast(`${matched} licenties gekoppeld${unmatched?(', '+unmatched+' niet gevonden'):''}`)}else{const norm=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();const byName={};app.data.spelers.forEach(p=>{const k=norm(fullName(p));if(k&&!(k in byName))byName[k]=p;});let toegevoegd=0,bijgewerkt=0;rows.forEach(r=>{const vn=String(r[mapping.voornaam]||'').trim();const tv=String(r[mapping.tussenvoegsel]||'').trim();const an=String(r[mapping.achternaam]||'').trim();let voornaam,tussenvoegsel,achternaam;if(vn||tv||an){voornaam=vn;tussenvoegsel=tv;achternaam=an}else{const nm=splitName(r[mapping.name]);voornaam=nm.voornaam;tussenvoegsel=nm.tussenvoegsel;achternaam=nm.achternaam}if(!voornaam&&!achternaam)return;const teams=String(r[mapping.team]||'').split(/[,;/]+/).map(x=>x.trim()).filter(Boolean);const key=norm(fullName({voornaam,tussenvoegsel,achternaam}));const found=byName[key];if(found){if(teams.length){found.team=teams[0];found.teams=teams;}if(!roleNorm(found.role))found.role=roleNorm(r[mapping.role])||roleFromTeam(teams[0]||'');bijgewerkt++;}else{const o={id:uid(),voornaam,tussenvoegsel,achternaam,team:teams[0]||'',teams,role:(roleNorm(r[mapping.role])||roleFromTeam(teams[0]||'')),license:'',status:'available',reason:''};o.name=fullName(o);app.data.spelers.push(o);byName[key]=o;toegevoegd++;}});toast(`Spelers: ${toegevoegd} toegevoegd, ${bijgewerkt} bijgewerkt`)}updateCounts();saveAll()}
 function exportPdf(matchId){const id=typeof matchId==='string'?matchId:app.selectedMatchId;const match=app.data.wedstrijden.find(w=>w.id===id);if(!match)return;const {jsPDF}=window.jspdf;const doc=new jsPDF();doc.setFillColor(255,107,0);doc.rect(0,0,210,20,'F');doc.setTextColor(255,255,255);doc.setFontSize(18);doc.text(app.data.instellingen.vereniging,14,13);doc.setTextColor(0,0,0);doc.setFontSize(12);let y=30;doc.text(`${match.homeTeam} vs. ${match.awayTeam}`,14,y);y+=8;doc.text(`${fmtDate(match.date)} ${match.time}`,14,y);y+=10;rolesFor(match).forEach(r=>{doc.text(`${r.label}: ${assignmentFor(match.id)[r.key]?playerName(assignmentFor(match.id)[r.key]):'-'}`,14,y);y+=8});doc.save(`indeling-${match.homeTeam}.pdf`);toast('PDF geëxporteerd')}
+// PDF met de hele indeling van de gekozen periode, per speeldag gegroepeerd
+function exportRangePdf(alleenOpen){
+  let matches=matchesInRange().filter(m=>!m.away);
+  if(alleenOpen)matches=matches.filter(m=>rolesFor(m).some(r=>!assignmentFor(m.id)[r.key]));
+  if(!matches.length)return toast(alleenOpen?'Geen open plekken in deze periode':'Geen thuiswedstrijden in deze periode');
+  const {jsPDF}=window.jspdf;const doc=new jsPDF();
+  const M=14,BR=210,BODEM=282;let y=0,pagina=0;
+  const kop=()=>{
+    pagina++;
+    if(pagina>1)doc.addPage();
+    doc.setFillColor(255,107,0);doc.rect(0,0,BR,20,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(15);doc.setFont(undefined,'bold');
+    doc.text(app.data.instellingen.vereniging+(alleenOpen?' — nog in te vullen':' — wedstrijdtaken'),M,13);
+    doc.setTextColor(0,0,0);doc.setFont(undefined,'normal');doc.setFontSize(9.5);
+    doc.text('Seizoen '+(app.data.instellingen.seizoen||'')+'   ·   '+nlDate(rangeBounds().from)+' t/m '+nlDate(rangeBounds().to),M,27);
+    y=36;
+  };
+  const ruimte=(n)=>{if(y+n>BODEM)kop()};
+  kop();
+  let vorigeDag='';
+  matches.forEach(m=>{
+    const roles=rolesFor(m);
+    const tonen=roles.filter(r=>!alleenOpen||!assignmentFor(m.id)[r.key]);
+    if(!tonen.length)return;
+    ruimte(12+tonen.length*5.5);
+    if(m.date!==vorigeDag){
+      vorigeDag=m.date;
+      ruimte(14);
+      doc.setFillColor(242,242,242);doc.rect(M-2,y-4.5,BR-2*M+4,7,'F');
+      doc.setFont(undefined,'bold');doc.setFontSize(10.5);
+      doc.text(fmtDate(m.date),M,y);doc.setFont(undefined,'normal');
+      y+=9;
+    }
+    doc.setFontSize(10);doc.setFont(undefined,'bold');
+    doc.text(m.time+'   '+m.homeTeam+'  vs.  '+m.awayTeam,M,y);
+    doc.setFont(undefined,'normal');y+=5.5;
+    doc.setFontSize(9.5);
+    roles.filter(r=>!alleenOpen||!assignmentFor(m.id)[r.key]).forEach(r=>{
+      const pid=assignmentFor(m.id)[r.key];
+      const req=r.type==='scheidsrechter'?refLicReq(m,r.key):'';
+      doc.setTextColor(110,110,110);doc.text(r.label+(req?' ('+req+')':''),M+4,y);
+      doc.setTextColor(pid?0:190,pid?0:60,pid?0:60);
+      doc.text(pid?playerName(pid):'— niet ingedeeld',M+56,y);
+      doc.setTextColor(0,0,0);y+=5;
+    });
+    y+=3.5;
+  });
+  const totaal=matches.reduce((n,m)=>n+rolesFor(m).length,0);
+  const ingevuld=matches.reduce((n,m)=>n+rolesFor(m).filter(r=>assignmentFor(m.id)[r.key]).length,0);
+  ruimte(12);
+  doc.setFontSize(9);doc.setTextColor(110,110,110);
+  doc.text(alleenOpen?(matches.length+' wedstrijd(en) met open plekken  ·  '+(totaal-ingevuld)+' plek(ken) nog in te vullen'):(matches.length+' wedstrijd(en)  ·  '+ingevuld+' van '+totaal+' taken ingevuld'),M,y+3);
+  doc.save((alleenOpen?'open-plekken-':'taken-')+rangeBounds().from+'_tm_'+rangeBounds().to+'.pdf');
+  toast(alleenOpen?'PDF met open plekken geëxporteerd':'PDF van de periode geëxporteerd');
+}
 function exportTeamPdf(team){if(!team)return toast('Kies eerst een team');const teamPlayerIds=new Set(app.data.spelers.filter(p=>playerTeams(p).some(t=>sameTeam(t,team))).map(p=>p.id));const matches=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));const tasks=[];matches.forEach(m=>{const asg=assignmentFor(m.id);rolesFor(m).forEach(r=>{const pid=asg[r.key];if(pid&&teamPlayerIds.has(pid))tasks.push({m,role:r,pid})})});if(!tasks.length)return toast('Geen taken gevonden voor spelers van dit team');const nRef=tasks.filter(t=>t.role.type==='scheidsrechter').length;const nJury=tasks.filter(t=>t.role.type==='jury').length;const {jsPDF}=window.jspdf;const doc=new jsPDF();doc.setFillColor(255,107,0);doc.rect(0,0,210,20,'F');doc.setTextColor(255,255,255);doc.setFontSize(15);doc.text(`${app.data.instellingen.vereniging} — taken ${team}`,14,13);doc.setTextColor(0,0,0);let y=30;doc.setFontSize(11);doc.text(`Seizoen ${app.data.instellingen.seizoen||''}`,14,y);y+=7;doc.text(`Totaal ${tasks.length} taak/taken  ·  ${nRef} scheidsrechter, ${nJury} jury`,14,y);y+=10;doc.setFontSize(10);let lastDay='';tasks.forEach(t=>{if(y>285){doc.addPage();y=20}if(t.m.date!==lastDay){lastDay=t.m.date;doc.setFont(undefined,'bold');if(y>278){doc.addPage();y=20}doc.text(fmtDate(t.m.date),14,y);y+=6;doc.setFont(undefined,'normal')}doc.text(`     ${t.m.time}  ·  ${t.role.label}  ·  ${playerName(t.pid)}  —  ${t.m.homeTeam} vs. ${t.m.awayTeam}`,14,y);y+=6});doc.save(`taken-${team}.pdf`);toast(`PDF met taken voor ${team} geëxporteerd`)}
 function icsStamp(dateStr,hh,mm){return dateStr.replace(/-/g,'')+'T'+String(hh).padStart(2,'0')+String(mm).padStart(2,'0')+'00'}
 function exportICS(){const matches=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));if(!matches.length)return toast('Geen wedstrijden om te exporteren');const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Basketbal Indeling App//NL','CALSCALE:GREGORIAN'];matches.forEach(m=>{const [h,mi]=(m.time||'00:00').split(':').map(Number);const start=icsStamp(m.date,h||0,mi||0);const end=icsStamp(m.date,(h||0)+2,mi||0);const tasks=rolesFor(m).map(r=>{const pid=assignmentFor(m.id)[r.key];return r.label+': '+(pid?playerName(pid):'-')}).join('\\n');lines.push('BEGIN:VEVENT','UID:'+m.id+'@bball-indeling','DTSTART:'+start,'DTEND:'+end,'SUMMARY:'+m.homeTeam+' vs '+m.awayTeam,'DESCRIPTION:'+tasks,'END:VEVENT')});lines.push('END:VCALENDAR');const blob=new Blob([lines.join('\r\n')],{type:'text/calendar'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='basketbal-indeling.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);toast('iCal-bestand geëxporteerd')}
+// Excel met de indeling van de gekozen periode: één regel per rol, ook de nog lege
+function exportRangeXlsx(){
+  const matches=matchesInRange().filter(m=>!m.away);
+  if(!matches.length)return toast('Geen thuiswedstrijden in deze periode');
+  const rows=[];
+  matches.forEach(m=>{
+    rolesFor(m).forEach(r=>{
+      const pid=assignmentFor(m.id)[r.key];
+      const p=pid?person(pid):null;
+      rows.push({
+        Datum:fmtDate(m.date),
+        Dag:weekdayAbbr(m.date),
+        Tijd:m.time||'',
+        Thuisteam:m.homeTeam,
+        Tegenstander:m.awayTeam,
+        Rol:r.label,
+        Soort:r.type==='scheidsrechter'?'Scheidsrechter':'Jury',
+        'Vereiste licentie':r.type==='scheidsrechter'?(refLicReq(m,r.key)||''):'',
+        Naam:p?fullName(p):'',
+        Team:p?playerTeams(p).join(', '):'',
+        Licentie:p?(p.license||''):'',
+        Poule:pid&&isPoule(pid)?'ja':'',
+        Status:pid?'ingedeeld':'OPEN'
+      });
+    });
+  });
+  const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
+  ws['!cols']=[{wch:18},{wch:5},{wch:6},{wch:22},{wch:28},{wch:18},{wch:14},{wch:16},{wch:24},{wch:16},{wch:9},{wch:6},{wch:10}];
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:12}})};
+  XLSX.utils.book_append_sheet(wb,ws,'Indeling');
+  const b=rangeBounds();
+  XLSX.writeFile(wb,'indeling-'+b.from+'_tm_'+b.to+'.xlsx');
+  const open=rows.filter(r=>r.Status==='OPEN').length;
+  toast('Excel geëxporteerd — '+rows.length+' regels, '+open+' nog open');
+}
 function exportHistory(){const rows=app.data.spelers.map(p=>{const c=app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};return{Voornaam:p.voornaam||'',Tussenvoegsel:p.tussenvoegsel||'',Achternaam:p.achternaam||'',Speler:fullName(p),Team:p.team,Licentie:p.license||'',Scheidsrechter:c.scheidsrechter,Jury:c.jury,Totaal:c.scheidsrechter+c.jury}});const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Geschiedenis');XLSX.writeFile(wb,'seizoensgeschiedenis.xlsx');toast('Geschiedenis geëxporteerd')}
 function archiveSeason(){const s=app.data.instellingen.seizoen||'Onbekend seizoen';if(!confirm(`Huidige tellingen archiveren als ${s}?`))return;app.data.archief[s]=JSON.parse(JSON.stringify(app.data.tellingen));app.data.tellingen={};saveAll();render();toast('Nieuw seizoen gestart')}
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const t=e.target;if(!t||t.tagName!=='INPUT')return;if(t.closest&&t.closest('dialog'))return;e.preventDefault();t.blur();});
