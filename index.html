@@ -517,7 +517,9 @@ function availabilityText(p){return availabilityFor(p).map(s=>s.date+' '+(s.time
 // Maximum aantal taken per speler per seizoen (0 = geen maximum)
 function maxTasks(){const v=parseInt(app.data.instellingen.maxTaken,10);return isNaN(v)?5:Math.max(0,v)}
 // Aantal taken van een persoon over het hele seizoen; tempIndeling telt mee tijdens een bulk-run
-function seasonTaskCount(pid,tempIndeling){let n=0;app.data.wedstrijden.forEach(w=>{const asg=(tempIndeling&&tempIndeling[w.id])||app.data.indeling[w.id]||{};if(Object.values(asg).filter(Boolean).includes(pid))n++});return n}
+function seasonTaskCount(pid,tempIndeling){return taskCountMap(tempIndeling)[pid]||0}
+// Aantal taken per persoon over het hele seizoen, in één keer opgebouwd (tempIndeling telt mee tijdens een bulk-run)
+function taskCountMap(tempIndeling){const m={};app.data.wedstrijden.forEach(w=>{const asg=(tempIndeling&&tempIndeling[w.id])||app.data.indeling[w.id]||{};Object.values(asg).forEach(pid=>{if(pid)m[pid]=(m[pid]||0)+1});});return m}
 // Uitklapblok onder een speler in Geschiedenis: welke wedstrijden heeft hij als taak?
 function playerTasksHtml(p){
   const t=tasksForPerson(p.id);
@@ -591,6 +593,8 @@ function computeHalfYear(){const since=halfYearSince();const counts={};app.data.
 function overAvg(id){if(isPoule(id))return false;const hy=app._hy||(app._hy=computeHalfYear());const c=hy.counts[id]||0;return c>4;}
 function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
   const currentAsg=tempAsg||assignmentFor(match.id);
+  // Seizoenstotaal per persoon, één keer opgebouwd: dit is de basis voor de eerlijke verdeling
+  const totalen=taskCountMap(tempIndeling);
   const usedInMatch=Object.values(currentAsg).filter(Boolean);
   const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';
   // teams die al aan een juryrol van deze wedstrijd zijn toegewezen (voor groepering)
@@ -620,7 +624,8 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
       if(playsNow){hard=true;score+=1000;reasons.push('Eigen team speelt nu')}
       if(tooLateForYouth(p,match)){hard=true;score+=1000;reasons.push('U14 of jonger — niet na 18:30')}
       if(role.type==='scheidsrechter'){
-        tier=-licRank(p.license); // hogere licentie/ervaring eerst voor scheidsrechteren
+        // Alleen ordenen op licentie als de wedstrijd er een eist; anders beslist de eerlijke verdeling
+        tier=reqLic?-licRank(p.license):0;
         // HARDE regel: onder 18 mag niet fluiten bij U22 of senioren
         if(tooYoungForSeniorRef(p,match)){hard=true;score+=1000;reasons.push('Onder 18 — niet fluiten bij U22/senioren')}
         // HARDE regel: vereiste licentie ontbreekt
@@ -638,9 +643,9 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
       }
       if(sameDayElsewhere(p.id,match,tempIndeling)){hard=true;score+=1000;reasons.push('Al een taak vandaag')} // max 1 taak per dag (poule uitgezonderd)
       // HARDE regel: seizoensmaximum aantal taken bereikt
-      {const _mx=maxTasks();if(_mx&&seasonTaskCount(p.id,tempIndeling)>=_mx){hard=true;score+=1000;reasons.push('Maximum van '+_mx+' taken bereikt')}}
+      {const _mx=maxTasks();if(_mx&&(totalen[p.id]||0)>=_mx){hard=true;score+=1000;reasons.push('Maximum van '+_mx+' taken bereikt')}}
       const c=(tempCounts&&tempCounts[p.id])||app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};
-      return{player:p,reasons,score,hard,count:c,poule:false,tier};
+      return{player:p,reasons,score,hard,count:c,totaal:(totalen[p.id]||0),poule:false,tier};
     });
   // Poule-scheidsrechters: eerste keuze voor scheidsrechtersrollen
   let pouleCands=[];
@@ -650,7 +655,7 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
       .filter(p=>!hardConflict(p.id,match,tempIndeling))
       .map(p=>{
         const per=person(p.id)||p; // gekoppelde speler levert naam/team/niveau; p levert vakantie
-        let score=0;const reasons=[];let hard=false;const teams=playerTeams(per);const tier=-licRank(per.license); // hogere licentie/ervaring eerst
+        let score=0;const reasons=[];let hard=false;const teams=playerTeams(per);const tier=reqLic?-licRank(per.license):0; // alleen op licentie ordenen als de wedstrijd er een eist
         if(onVacation(p,match.date)){hard=true;score+=1000;reasons.push('Afwezig (vakantie)')}
         if(weekAssignCount(p.id,match.date,tempIndeling,match.id)>=2){hard=true;score+=1000;reasons.push('Al 2× deze week')}
         const playsNow=app.data.wedstrijden.some(w=>w.date===match.date&&toMin(w.time)===toMin(match.time)&&teams.some(t=>(!w.away&&sameTeam(w.homeTeam,t))||(w.away&&sameTeam(w.awayTeam,t))));
@@ -664,11 +669,11 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
         const gap=dayGapForPerson(p.id,match,tempIndeling);
         if(gap!==null){if(gap>=3){hard=true;score+=1000;reasons.push('Te ver van andere wedstrijd (begin/eind dag)')}else if(gap===2){score+=15;reasons.push('Niet aansluitend')}else{score-=8;}}
         const c=(tempCounts&&tempCounts[p.id])||app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};
-        return{player:per,reasons,score,hard,count:c,poule:true,tier};
+        return{player:per,reasons,score,hard,count:c,totaal:(totalen[p.id]||0),poule:true,tier};
       });
   }
   // sorteer: eerst niet-hard, daarbinnen poule vóór gewone spelers, dan op score/aantal/naam
-  return [...pouleCands,...playerCands].sort((a,b)=>(a.hard-b.hard)||((a.poule?0:1)-(b.poule?0:1))||((a.tier||0)-(b.tier||0))||a.score-b.score||((a.count.scheidsrechter+a.count.jury)-(b.count.scheidsrechter+b.count.jury))||fullName(a.player).localeCompare(fullName(b.player)));
+  return [...pouleCands,...playerCands].sort((a,b)=>(a.hard-b.hard)||((a.poule?0:1)-(b.poule?0:1))||((a.tier||0)-(b.tier||0))||a.score-b.score||((a.totaal||0)-(b.totaal||0))||fullName(a.player).localeCompare(fullName(b.player)));
 }
 function autoPick(candidates){return candidates.find(c=>!c.hard)||null}
 function showSuggest(inp){const box=inp.parentElement.querySelector('.suggest');if(!box)return;const term=inp.value.trim().toLowerCase();if(term.length<3){box.innerHTML='';return}const matches=app.data.spelers.filter(p=>fullName(p).toLowerCase().includes(term)||String(p.team||'').toLowerCase().includes(term)).slice(0,8);box.innerHTML=matches.length?matches.map(p=>`<div class="suggest-item" data-pid="${p.id}">${esc(fullName(p))} <span class="faint">${esc(p.team||'')}</span></div>`).join(''):'<div class="suggest-empty">geen treffers</div>';box.querySelectorAll('.suggest-item').forEach(it=>it.onclick=()=>assignRole(inp.dataset.sm,inp.dataset.sr,it.dataset.pid))}
