@@ -488,6 +488,21 @@ function toMin(t){const s=String(t||'').trim().replace(/[.u]/g,':');const m=s.sp
 function normTeam(t){return String(t||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
 function sameTeam(a,b){const x=normTeam(a),y=normTeam(b);if(!x||!y)return false;if(x===y)return true;if(x.length>=3&&y.length>=3)return x.endsWith(y)||y.endsWith(x);return false}
 function dayTimes(date){return [...new Set(app.data.wedstrijden.filter(w=>w.date===date).map(w=>toMin(w.time)))].sort((a,b)=>a-b)}
+// Kleinste verschil in MINUTEN tussen deze taak en een eigen thuiswedstrijd die dag.
+// Tijdslot-afstand telt posities in de lijst met aanvangstijden; door uitwedstrijden van andere teams
+// zitten daar gaten in, waardoor "4 slots" en "6 slots" allebei als 'ver weg' golden. Minuten zijn eerlijker.
+function teamGapMinutes(teams,match){
+  let best=null;
+  app.data.wedstrijden.forEach(w=>{
+    if(w.date!==match.date||w.away)return;
+    if(!String(w.time||'').trim())return;
+    if(!teams.some(t=>sameTeam(w.homeTeam,t)))return;
+    const d=Math.abs(toMin(w.time)-toMin(match.time));
+    if(d===0)return;
+    if(best===null||d<best)best=d;
+  });
+  return best;
+}
 function teamSlotDistance(team,match){if(!normTeam(team))return null;const times=dayTimes(match.date);const idx=times.indexOf(toMin(match.time));let best=null;app.data.wedstrijden.forEach(w=>{if(w.date!==match.date||w.away||!sameTeam(w.homeTeam,team))return;const wi=times.indexOf(toMin(w.time));if(wi<0)return;const d=Math.abs(wi-idx);if(d===0)return;if(best===null||d<best)best=d});return best}
 function rolesFor(match){const roles=[{key:'scheidsrechter1',label:'Scheidsrechter 1',type:'scheidsrechter'},{key:'scheidsrechter2',label:'Scheidsrechter 2',type:'scheidsrechter'},{key:'jury1',label:'Timer',type:'jury'},{key:'jury2',label:'Scorer',type:'jury'}];if(match.extra24)roles.push({key:'jury3',label:'24-seconde operator',type:'jury'});return roles}
 function assignmentFor(id){return app.data.indeling[id]||{}}
@@ -532,6 +547,20 @@ function parseAvailability(txt){return String(txt||'').split(/\n+/).map(l=>l.tri
 }).filter(Boolean)}
 function availabilityText(p){return availabilityFor(p).map(s=>s.date+' '+(s.time?s.time:(s.rel==='na'?'na':s.rel==='voor'?'voor':'voor of na'))).join('\n')}
 // Maximum aantal taken per speler per seizoen (0 = geen maximum)
+// Seizoenshelft: september t/m december = 1, januari t/m mei = 2
+function seasonHalf(date){const m=parseInt(String(date||'').slice(5,7),10);return (m>=9)?1:2}
+// Maximum aantal wedstrijden per seizoenshelft voor poule-scheidsrechters (0 = geen maximum)
+function maxPouleTasks(){const v=parseInt(app.data.instellingen.maxPoule,10);return isNaN(v)?20:Math.max(0,v)}
+// Aantal taken van een poule-lid in dezelfde seizoenshelft
+function pouleHalfCount(pid,date,tempIndeling,exceptId){
+  const h=seasonHalf(date);let n=0;
+  app.data.wedstrijden.forEach(w=>{
+    if(w.id===exceptId||seasonHalf(w.date)!==h)return;
+    const asg=(tempIndeling&&tempIndeling[w.id])||app.data.indeling[w.id]||{};
+    if(Object.values(asg).filter(Boolean).includes(pid))n++;
+  });
+  return n;
+}
 function maxTasks(){const v=parseInt(app.data.instellingen.maxTaken,10);return isNaN(v)?5:Math.max(0,v)}
 // Aantal taken van een persoon over het hele seizoen; tempIndeling telt mee tijdens een bulk-run
 function seasonTaskCount(pid,tempIndeling){return taskCountMap(tempIndeling)[pid]||0}
@@ -621,6 +650,15 @@ function halfYearSince(){const d=new Date();d.setMonth(d.getMonth()-6);return is
 function computeHalfYear(){const since=halfYearSince();const counts={};app.data.wedstrijden.forEach(w=>{if(w.date<since)return;const asg=app.data.indeling[w.id]||{};rolesFor(w).forEach(role=>{const pid=asg[role.key];if(pid)counts[pid]=(counts[pid]||0)+1;});});const pool=new Set([...app.data.spelers.map(p=>p.id),...(app.data.poule||[]).map(p=>p.id)]);const total=Object.values(counts).reduce((a,b)=>a+b,0);return {counts,avg:pool.size?total/pool.size:0};}
 // "Vaak ingedeeld" verschijnt pas vanaf meer dan 4 taken; niet voor poule-leden
 function overAvg(id){if(isPoule(id))return false;const hy=app._hy||(app._hy=computeHalfYear());const c=hy.counts[id]||0;return c>4;}
+// Strafpunten voor de afstand tot de eigen wedstrijd. Tot 2 uur = aansluitend, daarna loopt het
+// geleidelijk op, zodat wie 2 uur moet wachten altijd vóór iemand van 4 uur komt.
+function gapPenalty(gapMin,reasons){
+  if(gapMin===null){reasons.push('Team speelt niet vlak voor/na');return 50}
+  if(gapMin<=120)return 0;
+  const uren=Math.round(gapMin/6)/10;
+  reasons.push('Team speelt '+String(uren).replace('.',',')+' uur ervoor/erna');
+  return 20+Math.round((gapMin-120)/15);
+}
 function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
   const currentAsg=tempAsg||assignmentFor(match.id);
   // Seizoenstotaal per persoon, één keer opgebouwd: dit is de basis voor de eerlijke verdeling
@@ -636,7 +674,7 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
     .filter(p=>roleEligible(p.role,role.type))
     .filter(p=>role.type!=='scheidsrechter'||!isPoule(p.id))
     .map(p=>{
-      let score=0;const reasons=[];let hard=false;let tier=0;
+      let score=0;const reasons=[];let hard=false;let tier=0;let koppel=0;
       const teams=playerTeams(p);
       // HARDE regel: geen van de team(s) speelt op deze dag -> mag niet ingedeeld worden
       const playsToday=teams.some(t=>teamPlaysOnDay(t,match.date));
@@ -644,6 +682,7 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
       const playsNow=app.data.wedstrijden.some(w=>w.date===match.date&&toMin(w.time)===toMin(match.time)&&teams.some(t=>(!w.away&&sameTeam(w.homeTeam,t))||(w.away&&sameTeam(w.awayTeam,t))));
       // kortste afstand tot een eigen wedstrijd vlak voor/na (over alle teams)
       let slotDist=null;teams.forEach(t=>{const dd=teamSlotDistance(t,match);if(dd!=null&&(slotDist===null||dd<slotDist))slotDist=dd;});
+      const gapMin=teamGapMinutes(teams,match);const dichtbij=(gapMin!==null&&gapMin<=120);
       // Eigen beschikbaarheidslijst vervangt de "team speelt vandaag"-eis
       const eigenLijst=availabilityFor(p).length>0;
       if(eigenLijst){
@@ -662,20 +701,22 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
         if(reqLic&&!licenseMeets(p.license,reqLic)){hard=true;score+=1000;reasons.push('Mist licentie '+reqLic)}
         // KOPPELING: geen twee onervaren scheidsrechters samen; koppel ervaren aan nieuwe
         const otherRefPid=rolesFor(match).filter(r=>r.type==='scheidsrechter'&&r.key!==role.key).map(r=>currentAsg[r.key]).filter(Boolean)[0];
-        if(otherRefPid){const _op=person(otherRefPid);const otherRank=_op?licRank(_op.license):0;const myRank=licRank(p.license);if(otherRank<=1&&myRank<=1){score+=40;reasons.push('Twee onervaren scheidsrechters')}else if(otherRank<=1&&myRank>=3){score-=15}else if(otherRank>=3&&myRank<=1){score-=5}}
+        // Liever geen twee onervaren scheidsrechters samen, maar dit mag de eerlijke verdeling niet
+        // overrulen: het telt pas mee als het aantal beurten gelijk is (zie sortering onderaan).
+        if(otherRefPid){const _op=person(otherRefPid);const otherRank=_op?licRank(_op.license):0;if(otherRank<=1&&licRank(p.license)<=1){koppel=1;reasons.push('Twee onervaren scheidsrechters')}}
         // VOORKEUR: team speelt 1 tijdslot voor/na (ideaal) of 2 (oké), anders toegestaan maar minder gewenst
-        if(playsToday&&!playsNow&&!eigenLijst){const d=slotDist;if(d===1){}else if(d===2){score+=20;reasons.push('Team speelt 2 wedstrijden voor/na')}else{score+=50;reasons.push('Team speelt niet vlak voor/na')}}
+        if(playsToday&&!playsNow&&!eigenLijst)score+=gapPenalty(gapMin,reasons);
       }else{
-        const _adj=(slotDist===1); tier=(roleNorm(p.role)==='jury')?(_adj?0:2):(_adj?1:3); // 1 wedstrijd afstand = uitgangspunt; geen jury-only binnen 1 -> 'beide' met laagste licentie
+        const _adj=dichtbij; tier=(roleNorm(p.role)==='jury')?(_adj?0:2):(_adj?1:3); // 1 wedstrijd afstand = uitgangspunt; geen jury-only binnen 1 -> 'beide' met laagste licentie
         score+=licRank(p.license)*4; // bewaar hogere licenties voor scheidsrechteren
         // VOORKEUR: zelfde tijdslot-regel voor juryleden
-        if(playsToday&&!playsNow&&!eigenLijst){const d=slotDist;if(d===1){if(juryTeamsUsed.includes(normTeam(p.team)))score-=10}else if(d===2){score+=20;reasons.push('Team speelt 2 wedstrijden voor/na')}else{score+=50;reasons.push('Team speelt niet vlak voor/na')}}
+        if(playsToday&&!playsNow&&!eigenLijst){score+=gapPenalty(gapMin,reasons);if(dichtbij&&juryTeamsUsed.includes(normTeam(p.team)))score-=10}
       }
       if(sameDayElsewhere(p.id,match,tempIndeling)){hard=true;score+=1000;reasons.push('Al een taak vandaag')} // max 1 taak per dag (poule uitgezonderd)
       // HARDE regel: seizoensmaximum aantal taken bereikt
       {const _mx=maxTasks();if(_mx&&(totalen[p.id]||0)>=_mx){hard=true;score+=1000;reasons.push('Maximum van '+_mx+' taken bereikt')}}
       const c=(tempCounts&&tempCounts[p.id])||app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};
-      return{player:p,reasons,score,hard,count:c,totaal:(totalen[p.id]||0),poule:false,tier};
+      return{player:p,reasons,score,hard,count:c,totaal:(totalen[p.id]||0),poule:false,tier,koppel};
     });
   // Poule-scheidsrechters: eerste keuze voor scheidsrechtersrollen
   let pouleCands=[];
@@ -685,27 +726,28 @@ function rankedCandidates(match,role,tempAsg,tempIndeling,tempCounts){
       .filter(p=>!hardConflict(p.id,match,tempIndeling))
       .map(p=>{
         const per=person(p.id)||p; // gekoppelde speler levert naam/team/niveau; p levert vakantie
-        let score=0;const reasons=[];let hard=false;const teams=playerTeams(per);const tier=reqLic?-licRank(per.license):0; // alleen op licentie ordenen als de wedstrijd er een eist
+        let score=0;const reasons=[];let hard=false;const teams=playerTeams(per);const tier=reqLic?-licRank(per.license):0;let koppel=0; // alleen op licentie ordenen als de wedstrijd er een eist
         if(onVacation(p,match.date)){hard=true;score+=1000;reasons.push('Afwezig (vakantie)')}
         if(weekAssignCount(p.id,match.date,tempIndeling,match.id)>=2){hard=true;score+=1000;reasons.push('Al 2× deze week')}
         // HARDE regel: eigen team speelt uit binnen 4 uur van deze taak -> reistijd, dus niet inzetbaar
         if(awayClash(per,match)){hard=true;score+=1000;reasons.push('Eigen team speelt uit binnen 4 uur')}
+        {const _mp=maxPouleTasks();if(_mp&&pouleHalfCount(p.id,match.date,tempIndeling,match.id)>=_mp){hard=true;score+=1000;reasons.push('Maximum van '+_mp+' per seizoenshelft bereikt')}}
         const playsNow=app.data.wedstrijden.some(w=>w.date===match.date&&toMin(w.time)===toMin(match.time)&&teams.some(t=>(!w.away&&sameTeam(w.homeTeam,t))||(w.away&&sameTeam(w.awayTeam,t))));
         if(playsNow){hard=true;score+=1000;reasons.push('Eigen team speelt nu')}
         if(tooLateForYouth(per,match)){hard=true;score+=1000;reasons.push('U14 of jonger — niet na 18:30')}
         // (onder-18-regel geldt niet voor poule-scheidsrechters)
         if(reqLic&&!licenseMeets(per.license,reqLic)){hard=true;score+=1000;reasons.push('Mist licentie '+reqLic)}
         const otherRefPid=rolesFor(match).filter(r=>r.type==='scheidsrechter'&&r.key!==role.key).map(r=>currentAsg[r.key]).filter(Boolean)[0];
-        if(otherRefPid){const _op=person(otherRefPid);const otherRank=_op?licRank(_op.license):0;const myRank=licRank(per.license);if(otherRank<=1&&myRank<=1){score+=40;reasons.push('Twee onervaren scheidsrechters')}else if(otherRank<=1&&myRank>=3){score-=15}else if(otherRank>=3&&myRank<=1){score-=5}}
+        if(otherRefPid){const _op=person(otherRefPid);const otherRank=_op?licRank(_op.license):0;if(otherRank<=1&&licRank(per.license)<=1){koppel=1;reasons.push('Twee onervaren scheidsrechters')}}
         // Aansluitend fluiten: liefst achter elkaar, nooit begin + eind van de dag
         const gap=dayGapForPerson(p.id,match,tempIndeling);
         if(gap!==null){if(gap>=3){hard=true;score+=1000;reasons.push('Te ver van andere wedstrijd (begin/eind dag)')}else if(gap===2){score+=15;reasons.push('Niet aansluitend')}else{score-=8;}}
         const c=(tempCounts&&tempCounts[p.id])||app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};
-        return{player:per,reasons,score,hard,count:c,totaal:(totalen[p.id]||0),poule:true,tier};
+        return{player:per,reasons,score,hard,count:c,totaal:(totalen[p.id]||0),poule:true,tier,koppel};
       });
   }
   // sorteer: eerst niet-hard, daarbinnen poule vóór gewone spelers, dan op score/aantal/naam
-  return [...pouleCands,...playerCands].sort((a,b)=>(a.hard-b.hard)||((a.poule?0:1)-(b.poule?0:1))||((a.tier||0)-(b.tier||0))||a.score-b.score||((a.totaal||0)-(b.totaal||0))||fullName(a.player).localeCompare(fullName(b.player)));
+  return [...pouleCands,...playerCands].sort((a,b)=>(a.hard-b.hard)||((a.poule?0:1)-(b.poule?0:1))||((a.tier||0)-(b.tier||0))||a.score-b.score||((a.totaal||0)-(b.totaal||0))||((a.koppel||0)-(b.koppel||0))||fullName(a.player).localeCompare(fullName(b.player)));
 }
 function autoPick(candidates){return candidates.find(c=>!c.hard)||null}
 function showSuggest(inp){const box=inp.parentElement.querySelector('.suggest');if(!box)return;const term=inp.value.trim().toLowerCase();if(term.length<3){box.innerHTML='';return}const matches=app.data.spelers.filter(p=>fullName(p).toLowerCase().includes(term)||String(p.team||'').toLowerCase().includes(term)).slice(0,8);box.innerHTML=matches.length?matches.map(p=>`<div class="suggest-item" data-pid="${p.id}">${esc(fullName(p))} <span class="faint">${esc(p.team||'')}</span></div>`).join(''):'<div class="suggest-empty">geen treffers</div>';box.querySelectorAll('.suggest-item').forEach(it=>it.onclick=()=>assignRole(inp.dataset.sm,inp.dataset.sr,it.dataset.pid))}
@@ -791,7 +833,7 @@ function render(){try{localStorage.setItem('bball_tab',app.tab)}catch(e){}app._h
 /* ===== redesign view layer (new look, original logic) ===== */
 function initials(p){const f=fullName(p);const parts=String(f||'').split(' ').filter(Boolean);if(!parts.length)return '?';const a=parts[0][0]||'';const b=parts.length>1?parts[parts.length-1][0]:'';return (a+b).toUpperCase();}
 function weekdayAbbr(date){const d=new Date(date+'T00:00:00');return isNaN(d)?'':d.toLocaleDateString('nl-NL',{weekday:'short'}).replace('.','');}
-function slotWarns(pid,match,role){const w=[];if(!pid)return w;const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(overAvg(pid))w.push({sev:'warn',label:'vaak ingedeeld'});if(isPoule(pid)){const rec=pouleMember(pid);if(!rec)return w;const p=person(pid)||rec;if(onVacation(rec,match.date))w.push({sev:'block',label:'afwezig'});if(tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(weekAssignCount(pid,match.date,null,match.id)>=2)w.push({sev:'block',label:'al 2× deze week'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else{const g=dayGapForPerson(pid,match,null);if(g!==null&&g>=3)w.push({sev:'warn',label:'niet aansluitend'});}if(app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(awayClash(p,match))w.push({sev:'block',label:'uitwedstrijd binnen 4 uur'});if(reqLic&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}const p=player(pid);if(p){if(!roleNorm(p.role))w.push({sev:'block',label:'geen rol'});else if(!roleEligible(p.role,role.type))w.push({sev:'block',label:'rol past niet'});}if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(p&&tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(p&&availabilityFor(p).length){if(notAvailable(p,match))w.push({sev:'block',label:'buiten eigen beschikbaarheid'});}else{if(p&&!playerTeams(p).some(t=>teamPlaysOnDay(t,match.date)))w.push({sev:'block',label:'team speelt niet die dag'});if(p&&playerTeams(p).some(t=>teamPlaysAwayOnDay(t,match.date)))w.push({sev:'block',label:'eigen team speelt uit'});}if(p&&role.type==='scheidsrechter'&&tooYoungForSeniorRef(p,match))w.push({sev:'block',label:'onder 18 bij U22/senioren'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(sameDayElsewhere(pid,match,null))w.push({sev:'block',label:'al een taak vandaag'});if(p&&app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>sameTeam(w2.homeTeam,t)||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}
+function slotWarns(pid,match,role){const w=[];if(!pid)return w;const reqLic=role.type==='scheidsrechter'?refLicReq(match,role.key):'';if(overAvg(pid))w.push({sev:'warn',label:'vaak ingedeeld'});if(isPoule(pid)){const rec=pouleMember(pid);if(!rec)return w;const p=person(pid)||rec;if(onVacation(rec,match.date))w.push({sev:'block',label:'afwezig'});if(tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(weekAssignCount(pid,match.date,null,match.id)>=2)w.push({sev:'block',label:'al 2× deze week'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else{const g=dayGapForPerson(pid,match,null);if(g!==null&&g>=3)w.push({sev:'warn',label:'niet aansluitend'});}if(app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>(!w2.away&&sameTeam(w2.homeTeam,t))||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(awayClash(p,match))w.push({sev:'block',label:'uitwedstrijd binnen 4 uur'});{const _mp=maxPouleTasks();if(_mp&&pouleHalfCount(pid,match.date,null,match.id)>=_mp)w.push({sev:'block',label:'max '+_mp+' per seizoenshelft'});}if(reqLic&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});return w;}const p=player(pid);if(p){if(!roleNorm(p.role))w.push({sev:'block',label:'geen rol'});else if(!roleEligible(p.role,role.type))w.push({sev:'block',label:'rol past niet'});}if(p&&p.status!=='available')w.push({sev:'block',label:'niet beschikbaar'});if(p&&tooLateForYouth(p,match))w.push({sev:'block',label:'U14 na 18:30'});if(p&&availabilityFor(p).length){if(notAvailable(p,match))w.push({sev:'block',label:'buiten eigen beschikbaarheid'});}else{if(p&&!playerTeams(p).some(t=>teamPlaysOnDay(t,match.date)))w.push({sev:'block',label:'team speelt niet die dag'});if(p&&playerTeams(p).some(t=>teamPlaysAwayOnDay(t,match.date)))w.push({sev:'block',label:'eigen team speelt uit'});}if(p&&role.type==='scheidsrechter'&&tooYoungForSeniorRef(p,match))w.push({sev:'block',label:'onder 18 bij U22/senioren'});if(hardConflict(pid,match,null))w.push({sev:'block',label:'zelfde tijdstip'});else if(sameDayElsewhere(pid,match,null))w.push({sev:'block',label:'al een taak vandaag'});if(p&&app.data.wedstrijden.some(w2=>w2.date===match.date&&toMin(w2.time)===toMin(match.time)&&playerTeams(p).some(t=>(!w2.away&&sameTeam(w2.homeTeam,t))||(w2.away&&sameTeam(w2.awayTeam,t)))))w.push({sev:'block',label:'eigen team speelt'});if(reqLic&&p&&!licenseMeets(p.license,reqLic))w.push({sev:'block',label:'mist '+reqLic});if(p&&!w.some(x=>x.sev==='block')){const g=teamGapMinutes(playerTeams(p),match);if(g!==null&&g>120)w.push({sev:'warn',label:String(Math.round(g/6)/10).replace('.',',')+' uur voor/na eigen wedstrijd'});}return w;}
 function mBlock(match){return rolesFor(match).some(r=>{const pid=assignmentFor(match.id)[r.key];return pid&&slotWarns(pid,match,r).some(x=>x.sev==='block')});}
 function mStatus(match){const roles=rolesFor(match),asg=assignmentFor(match.id),filled=roles.filter(r=>asg[r.key]).length;if(mBlock(match))return['block','Conflict'];if(filled===0)return['open','Niet ingedeeld'];if(filled===roles.length)return['ok','Volledig'];return['warn',filled+'/'+roles.length+' ingevuld'];}
 
@@ -959,7 +1001,7 @@ const views={
  instellingen(){
   const teams=teamList();
   return `<div class="page-head"><div class="lead"><h2>Instellingen</h2><p>Algemene gegevens, exports en de standaardregels voor het indelen.</p></div></div>
-  <div class="card"><div class="section-h"><h3>Algemeen</h3></div><div class="form-grid"><div class="field"><label>Vereniging</label><input id="verenigingInput" type="text" value="${esc(app.data.instellingen.vereniging||'')}"></div><div class="field"><label>Seizoen</label><input id="seizoenInput" type="text" value="${esc(app.data.instellingen.seizoen||'')}"></div><div class="field"><label>Maximum taken per speler per seizoen</label><input id="maxTakenInput" type="number" min="0" step="1" value="${esc(String(maxTasks()))}"><span class="hint">0 = geen maximum. Geldt alleen voor het automatisch indelen; handmatig kun je er altijd overheen.</span></div></div><div class="toolbar" style="margin-top:var(--sp-4)"><button class="btn ghost" id="logoutBtn"><i data-lucide="lock"></i> Vergrendelen (uitloggen)</button></div></div>
+  <div class="card"><div class="section-h"><h3>Algemeen</h3></div><div class="form-grid"><div class="field"><label>Vereniging</label><input id="verenigingInput" type="text" value="${esc(app.data.instellingen.vereniging||'')}"></div><div class="field"><label>Seizoen</label><input id="seizoenInput" type="text" value="${esc(app.data.instellingen.seizoen||'')}"></div><div class="field"><label>Maximum taken per speler per seizoen</label><input id="maxTakenInput" type="number" min="0" step="1" value="${esc(String(maxTasks()))}"><span class="hint">0 = geen maximum. Geldt alleen voor het automatisch indelen; handmatig kun je er altijd overheen.</span></div><div class="field"><label>Maximum wedstrijden per poule-scheidsrechter per seizoenshelft</label><input id="maxPouleInput" type="number" min="0" step="1" value="${esc(String(maxPouleTasks()))}"><span class="hint">0 = geen maximum. Eerste helft = september t/m december, tweede helft = januari t/m mei.</span></div></div><div class="toolbar" style="margin-top:var(--sp-4)"><button class="btn ghost" id="logoutBtn"><i data-lucide="lock"></i> Vergrendelen (uitloggen)</button></div></div>
   <div class="card"><div class="section-h"><h3>Exporteren</h3></div><div class="form-grid"><div class="field"><label>PDF met taken per team</label><div class="toolbar"><select id="pdfTeamSelect" style="max-width:200px"><option value="">— kies team —</option>${teams.map(t=>`<option value="${esc(t)}" ${app.pdfTeam===t?'selected':''}>${esc(t)}</option>`).join('')}</select><button class="btn secondary" id="pdfTeamBtn"><i data-lucide="file-down"></i> Team-PDF</button></div></div><div class="field"><label>Agenda (alle wedstrijden)</label><div><button class="btn secondary" id="icsBtn"><i data-lucide="calendar-days"></i> iCal exporteren</button></div></div></div></div>
   <div class="card"><div class="section-h"><h3>Indelingsregels</h3></div><p class="hint">Elke wedstrijd heeft standaard twee scheidsrechters, een timer en een scorer. In het indeelscherm voeg je per wedstrijd een 24-seconde operator toe en stel je per scheidsrechtersfunctie de vereiste licentie in (geen, BS2 of BS3). De automatische indeling verdeelt taken eerlijk op basis van het aantal beurten dit seizoen.</p></div>`;
  }
@@ -1031,6 +1073,7 @@ function bind(){
  const _lo=document.getElementById('logoutBtn');if(_lo)_lo.onclick=logout;
  const _viInput=document.getElementById('verenigingInput');if(_viInput)_viInput.onchange=()=>{app.data.instellingen.vereniging=_viInput.value;saveAll();toast('Instellingen opgeslagen')};
  const _siInput=document.getElementById('seizoenInput');if(_siInput)_siInput.onchange=()=>{app.data.instellingen.seizoen=_siInput.value;saveAll();toast('Instellingen opgeslagen')};
+ const _mpInput=document.getElementById('maxPouleInput');if(_mpInput)_mpInput.onchange=()=>{const v=parseInt(_mpInput.value,10);app.data.instellingen.maxPoule=isNaN(v)?20:Math.max(0,v);saveAll();toast(app.data.instellingen.maxPoule?('Poule: max '+app.data.instellingen.maxPoule+' per seizoenshelft'):'Geen maximum voor de poule')};
  const _mxInput=document.getElementById('maxTakenInput');if(_mxInput)_mxInput.onchange=()=>{const v=parseInt(_mxInput.value,10);app.data.instellingen.maxTaken=isNaN(v)?5:Math.max(0,v);saveAll();toast(app.data.instellingen.maxTaken?('Maximum: '+app.data.instellingen.maxTaken+' taken per speler'):'Geen maximum meer')};
  document.querySelectorAll('[data-toggle24-match]').forEach(b=>b.onclick=()=>toggle24(b.dataset.toggle24Match));
  document.querySelectorAll('[data-lic-role]').forEach(s=>s.onchange=()=>setRefLic(s.dataset.licMatch,s.dataset.licRole,s.value));
