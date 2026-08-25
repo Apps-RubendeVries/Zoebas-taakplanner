@@ -1235,40 +1235,36 @@ function exportRangePdf(alleenOpen){
 function exportTeamPdf(team){if(!team)return toast('Kies eerst een team');const teamPlayerIds=new Set(app.data.spelers.filter(p=>playerTeams(p).some(t=>sameTeam(t,team))).map(p=>p.id));const matches=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));const tasks=[];matches.forEach(m=>{const asg=assignmentFor(m.id);rolesFor(m).forEach(r=>{const pid=asg[r.key];if(pid&&teamPlayerIds.has(pid))tasks.push({m,role:r,pid})})});if(!tasks.length)return toast('Geen taken gevonden voor spelers van dit team');const nRef=tasks.filter(t=>t.role.type==='scheidsrechter').length;const nJury=tasks.filter(t=>t.role.type==='jury').length;const {jsPDF}=window.jspdf;const doc=new jsPDF();doc.setFillColor(255,107,0);doc.rect(0,0,210,20,'F');doc.setTextColor(255,255,255);doc.setFontSize(15);doc.text(`${app.data.instellingen.vereniging} — taken ${team}`,14,13);doc.setTextColor(0,0,0);let y=30;doc.setFontSize(11);doc.text(`Seizoen ${app.data.instellingen.seizoen||''}`,14,y);y+=7;doc.text(`Totaal ${tasks.length} taak/taken  ·  ${nRef} scheidsrechter, ${nJury} jury`,14,y);y+=10;doc.setFontSize(10);let lastDay='';tasks.forEach(t=>{if(y>285){doc.addPage();y=20}if(t.m.date!==lastDay){lastDay=t.m.date;doc.setFont(undefined,'bold');if(y>278){doc.addPage();y=20}doc.text(fmtDate(t.m.date),14,y);y+=6;doc.setFont(undefined,'normal')}doc.text(`     ${t.m.time}  ·  ${t.role.label}  ·  ${playerName(t.pid)}  —  ${t.m.homeTeam} vs. ${t.m.awayTeam}`,14,y);y+=6});doc.save(`taken-${team}.pdf`);toast(`PDF met taken voor ${team} geëxporteerd`)}
 function icsStamp(dateStr,hh,mm){return dateStr.replace(/-/g,'')+'T'+String(hh).padStart(2,'0')+String(mm).padStart(2,'0')+'00'}
 function exportICS(){const matches=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));if(!matches.length)return toast('Geen wedstrijden om te exporteren');const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Basketbal Indeling App//NL','CALSCALE:GREGORIAN'];matches.forEach(m=>{const [h,mi]=(m.time||'00:00').split(':').map(Number);const start=icsStamp(m.date,h||0,mi||0);const end=icsStamp(m.date,(h||0)+2,mi||0);const tasks=rolesFor(m).map(r=>{const pid=assignmentFor(m.id)[r.key];return r.label+': '+(pid?playerName(pid):'-')}).join('\\n');lines.push('BEGIN:VEVENT','UID:'+m.id+'@bball-indeling','DTSTART:'+start,'DTEND:'+end,'SUMMARY:'+m.homeTeam+' vs '+m.awayTeam,'DESCRIPTION:'+tasks,'END:VEVENT')});lines.push('END:VCALENDAR');const blob=new Blob([lines.join('\r\n')],{type:'text/calendar'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='basketbal-indeling.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);toast('iCal-bestand geëxporteerd')}
-// Excel met de indeling van de gekozen periode: één regel per rol, ook de nog lege
+// Excel met de indeling van de gekozen periode: één regel per wedstrijd, elke rol een eigen kolom
 function exportRangeXlsx(){
   const matches=matchesInRange().filter(m=>!m.away);
   if(!matches.length)return toast('Geen thuiswedstrijden in deze periode');
-  const rows=[];
-  matches.forEach(m=>{
-    rolesFor(m).forEach(r=>{
-      const pid=assignmentFor(m.id)[r.key];
-      const p=pid?person(pid):null;
-      rows.push({
-        Datum:fmtDate(m.date),
-        Dag:weekdayAbbr(m.date),
-        Tijd:m.time||'',
-        Thuisteam:m.homeTeam,
-        Tegenstander:m.awayTeam,
-        Rol:r.label,
-        Soort:r.type==='scheidsrechter'?'Scheidsrechter':'Jury',
-        'Vereiste licentie':r.type==='scheidsrechter'?(refLicReq(m,r.key)||''):'',
-        Naam:p?fullName(p):'',
-        Team:p?playerTeams(p).join(', '):'',
-        Licentie:p?(p.license||''):'',
-        Poule:pid&&isPoule(pid)?'ja':'',
-        Status:pid?'ingedeeld':'OPEN'
-      });
-    });
+  const naam=(m,key)=>{const pid=assignmentFor(m.id)[key];return pid?playerName(pid):'OPEN'};
+  let open=0;
+  const rows=matches.map(m=>{
+    const heeft24=rolesFor(m).some(r=>r.key==='jury3');
+    const rij={
+      Datum:fmtDate(m.date),
+      Dag:weekdayAbbr(m.date),
+      Tijd:m.time||'',
+      Wedstrijd:m.homeTeam+' vs. '+m.awayTeam,
+      'Scheidsrechter 1':naam(m,'scheidsrechter1'),
+      'Scheidsrechter 2':naam(m,'scheidsrechter2'),
+      Timer:naam(m,'jury1'),
+      Scorer:naam(m,'jury2'),
+      '24-sec operator':heeft24?naam(m,'jury3'):''
+    };
+    open+=rolesFor(m).filter(r=>!assignmentFor(m.id)[r.key]).length;
+    return rij;
   });
   const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
-  ws['!cols']=[{wch:18},{wch:5},{wch:6},{wch:22},{wch:28},{wch:18},{wch:14},{wch:16},{wch:24},{wch:16},{wch:9},{wch:6},{wch:10}];
-  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:12}})};
+  ws['!cols']=[{wch:18},{wch:5},{wch:6},{wch:46},{wch:24},{wch:24},{wch:24},{wch:24},{wch:24}];
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:8}})};
+  ws['!freeze']={xSplit:0,ySplit:1};
   XLSX.utils.book_append_sheet(wb,ws,'Indeling');
   const b=rangeBounds();
   XLSX.writeFile(wb,'indeling-'+b.from+'_tm_'+b.to+'.xlsx');
-  const open=rows.filter(r=>r.Status==='OPEN').length;
-  toast('Excel geëxporteerd — '+rows.length+' regels, '+open+' nog open');
+  toast('Excel geëxporteerd — '+rows.length+' wedstrijden, '+open+' plek(ken) open');
 }
 function exportHistory(){const rows=app.data.spelers.map(p=>{const c=app.data.tellingen[p.id]||{scheidsrechter:0,jury:0};return{Voornaam:p.voornaam||'',Tussenvoegsel:p.tussenvoegsel||'',Achternaam:p.achternaam||'',Speler:fullName(p),Team:p.team,Licentie:p.license||'',Scheidsrechter:c.scheidsrechter,Jury:c.jury,Totaal:c.scheidsrechter+c.jury}});const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Geschiedenis');XLSX.writeFile(wb,'seizoensgeschiedenis.xlsx');toast('Geschiedenis geëxporteerd')}
 function archiveSeason(){const s=app.data.instellingen.seizoen||'Onbekend seizoen';if(!confirm(`Huidige tellingen archiveren als ${s}?`))return;app.data.archief[s]=JSON.parse(JSON.stringify(app.data.tellingen));app.data.tellingen={};saveAll();render();toast('Nieuw seizoen gestart')}
