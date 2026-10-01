@@ -253,35 +253,97 @@
   if (typeof module !== 'undefined' && module.exports) { module.exports = Core; return; }
 
   /* ===================== Browser: API-lagen ===================== */
-  function findToken() {
-    const re = /eyJ[\w-]+\.[\w-]+\.[\w-]+/;
-    const stores = [];
-    try { stores.push(root.sessionStorage); } catch (e) { /* */ }
-    try { stores.push(root.localStorage); } catch (e) { /* */ }
-    const now = Date.now() / 1000;
-    for (const st of stores) {
-      if (!st) continue;
-      for (let i = 0; i < st.length; i++) {
-        const v = st.getItem(st.key(i)); const m = v && v.match(re);
-        if (!m) continue;
-        try {
-          const payload = JSON.parse(atob(m[0].split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-          if (payload.exp && payload.exp < now) continue;
-        } catch (e) { continue; }
-        return m[0];
-      }
-    }
+  /* Token: de clubbeheer-app houdt de Bearer-JWT alleen in het geheugen. Daarom tappen we de
+     Authorization-header af van de eigen requests van de app (fetch en XMLHttpRequest) en lokken we
+     zo nodig een SPA-navigatie uit (menu-item "Wedstrijden") zodat er een API-call langskomt.
+     Het token blijft in deze closure: nooit loggen, tonen of opslaan. */
+  const JWT_RE = /^Bearer\s+(eyJ[\w-]+\.[\w-]+\.[\w-]+)\s*$/i;
+  const origFetch = root.fetch.bind(root);
+  let TOKEN = null;
+  let host = null;
+  const waiters = [];
+  let tokenStatus = () => {};
+  function jwtExp(t) {
+    try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp || 0; } catch (e) { return 0; }
+  }
+  function tokenValid(t) { if (!t) return false; const e = jwtExp(t); return !e || e > Date.now() / 1000 + 30; }
+  function offer(value) {
+    const m = typeof value === 'string' && value.match(JWT_RE);
+    if (!m || !tokenValid(m[1])) return;
+    const isNew = m[1] !== TOKEN;
+    TOKEN = m[1];
+    if (isNew) tokenStatus(true);
+    waiters.splice(0).forEach(f => f(TOKEN));
+  }
+  function headerFrom(h) {
+    if (!h) return null;
+    try {
+      if (typeof Headers !== 'undefined' && h instanceof Headers) return h.get('Authorization');
+      if (Array.isArray(h)) { const p = h.find(x => String(x[0]).toLowerCase() === 'authorization'); return p ? p[1] : null; }
+      for (const k in h) if (k.toLowerCase() === 'authorization') return h[k];
+    } catch (e) { /* */ }
     return null;
   }
+  function installTap() {
+    if (root.__zoebasTap) return;
+    root.__zoebasTap = true;
+    root.fetch = function (input, init) {
+      try {
+        offer(headerFrom(init && init.headers));
+        if (input && typeof input === 'object' && input.headers) offer(headerFrom(input.headers));
+      } catch (e) { /* */ }
+      return origFetch.apply(this, arguments);
+    };
+    const proto = root.XMLHttpRequest && root.XMLHttpRequest.prototype;
+    if (proto && proto.setRequestHeader) {
+      const orig = proto.setRequestHeader;
+      proto.setRequestHeader = function (name, value) {
+        try { if (String(name).toLowerCase() === 'authorization') offer(value); } catch (e) { /* */ }
+        return orig.apply(this, arguments);
+      };
+    }
+  }
+  // Kandidaten om een SPA-navigatie mee uit te lokken, in volgorde van voorkeur
+  function navCandidates() {
+    const els = [...document.querySelectorAll('a,button,[role=menuitem],[role=link],[routerlink]')]
+      .filter(el => !(host && host.contains && host.contains(el)));
+    const byText = t => els.find(el => (el.textContent || '').trim().toLowerCase() === t);
+    const byHref = re => els.find(el => re.test(el.getAttribute('href') || el.getAttribute('routerlink') || ''));
+    return [byText('wedstrijden'), byHref(/\/spas\/competition\/club\/matches/), byText('teams'), byText('dashboard')]
+      .filter((el, i, a) => el && a.indexOf(el) === i);
+  }
+  let pending = null;
+  function ensureToken(timeoutMs) {
+    if (tokenValid(TOKEN)) return Promise.resolve(TOKEN);
+    TOKEN = null;
+    if (pending) return pending;
+    pending = new Promise((resolve, reject) => {
+      const cands = navCandidates(); let i = 0;
+      const poke = () => {
+        const el = cands[i++];
+        if (el) { tokenStatus('Sessie ophalen via het menu\u2026'); try { el.click(); } catch (e) { /* */ } }
+        else tokenStatus('Klik in clubbeheer op een menu-item (bijv. Wedstrijden) om de sessie op te halen\u2026');
+      };
+      const ok = t => { clearInterval(iv); clearTimeout(to); pending = null; resolve(t); };
+      waiters.push(ok);
+      poke();
+      const iv = setInterval(poke, 4000);
+      const to = setTimeout(() => {
+        clearInterval(iv); const k = waiters.indexOf(ok); if (k >= 0) waiters.splice(k, 1); pending = null;
+        tokenStatus(false);
+        reject(new Error('Geen clubbeheer-sessie opgevangen. Ben je ingelogd? Klik op een menu-item in clubbeheer en probeer het opnieuw.'));
+      }, timeoutMs || 20000);
+    });
+    return pending;
+  }
 
-  let TOKEN = null;
-  async function foys(method, path, body) {
-    if (!TOKEN) TOKEN = findToken();
-    if (!TOKEN) throw new Error('Geen geldige clubbeheer-sessie gevonden. Log (opnieuw) in op club.basketball.nl en start de sync opnieuw.');
-    const headers = { Accept: 'application/json', 'X-Cluster': 'cluster-default', Authorization: 'Bearer ' + TOKEN };
+  async function foys(method, path, body, retried) {
+    const token = await ensureToken();
+    const headers = { Accept: 'application/json', 'X-Cluster': 'cluster-default', Authorization: 'Bearer ' + token };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const res = await fetch(CFG.api + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-    if (res.status === 401 || res.status === 403) { TOKEN = null; throw new Error('basketball.nl weigert de sessie (' + res.status + '). Log opnieuw in en probeer het nog eens.'); }
+    const res = await origFetch(CFG.api + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (res.status === 401 && !retried) { TOKEN = null; return foys(method, path, body, true); }
+    if (res.status === 401 || res.status === 403) { TOKEN = null; const err = new Error('basketball.nl weigert de sessie (' + res.status + '). Log opnieuw in en probeer het nog eens.'); err.status = res.status; throw err; }
     if (!res.ok) { let t = ''; try { t = (await res.text()).slice(0, 300); } catch (e) { /* */ } const err = new Error('HTTP ' + res.status + (t ? ': ' + t : '')); err.status = res.status; throw err; }
     if (res.status === 204) return null;
     const txt = await res.text();
@@ -291,7 +353,7 @@
     const headers = { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + CFG.supabaseKey, Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (prefer) headers.Prefer = prefer;
-    const res = await fetch(CFG.supabaseUrl + '/rest/v1/' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await origFetch(CFG.supabaseUrl + '/rest/v1/' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     if (!res.ok) throw new Error('Supabase ' + res.status + ': ' + (await res.text()).slice(0, 300));
     const txt = await res.text();
     return txt ? JSON.parse(txt) : null;
@@ -471,7 +533,8 @@
     return;
   }
 
-  const host = document.createElement('div');
+  host = document.createElement('div');
+  installTap();
   host.id = 'zoebas-sync-host';
   document.body.appendChild(host);
   const sh = host.attachShadow({ mode: 'open' });
@@ -481,6 +544,7 @@
       font:13px/1.45 Inter,system-ui,-apple-system,Segoe UI,sans-serif;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden}
     .h{background:#13110a;color:#fff;border-bottom:3px solid #e0b000;padding:10px 14px;display:flex;align-items:center;gap:10px}
     .h b{font-size:15px}.h .sp{flex:1}
+    .ses{font-size:11px;border-radius:999px;padding:1px 8px;background:#3a3a3a;color:#ddd}.ses.ok{background:#166534;color:#fff}.ses.bad{background:#991b1b;color:#fff}
     .tabs{display:flex;gap:4px}
     button{font:inherit;border:1px solid #dfe4ec;background:#fff;color:#121722;border-radius:8px;padding:6px 12px;cursor:pointer}
     button:hover{border-color:#6a7585}
@@ -510,7 +574,7 @@
     .hide{display:none}
   </style>
   <div class="p">
-    <div class="h"><b>Taakplanner \u2192 basketball.nl</b><span class="sp"></span>
+    <div class="h"><b>Taakplanner \u2192 basketball.nl</b><span class="ses" id="ses">sessie \u2026</span><span class="sp"></span>
       <div class="tabs"><button data-tab="off" class="on">Officials</button><button data-tab="spl">Spelers</button></div>
       <button id="x" title="Sluiten">\u2715</button></div>
     <div class="b" id="body"></div>
@@ -550,7 +614,7 @@
       Er wordt pas iets geschreven als je na de droge run op <b>Doorvoeren</b> klikt.</p>
       <div class="weeks">${pub.map(w => `<label><input type="checkbox" value="${w}" ${w >= curMonday ? 'checked' : ''}> week ${fmtD(w)} <span class="muted">(${weekCount(w)})</span></label>`).join('') || '<span class="muted">Er zijn nog geen weken gepubliceerd in de taakplanner.</span>'}</div>
       <label class="opt"><input type="checkbox" id="past"> ook wedstrijden in het verleden</label>
-      <label class="opt"><input type="checkbox" id="clr"> rijen leegmaken als de plek in de planner leeg is</label>
+      <label class="opt"><input type="checkbox" id="clr" checked> rijen leegmaken als de plek in de planner leeg is</label>
       <p class="small muted">Leegmaken gebeurt alleen bij rijen die door de sync zijn gevuld of waarvan de persoon in de taakplanner staat.</p>
       <div id="msg"></div><div class="log" id="log"></div>`;
     foot.innerHTML = '<button class="pri" id="dry">Droge run</button>';
@@ -667,6 +731,14 @@
     };
   }
 
+  tokenStatus = st => {
+    const el = $('#ses'); if (!el) return;
+    if (st === true) { el.className = 'ses ok'; el.textContent = 'sessie ok'; log('Clubbeheer-sessie opgevangen'); }
+    else if (st === false) { el.className = 'ses bad'; el.textContent = 'geen sessie'; }
+    else { el.className = 'ses'; el.textContent = 'sessie\u2026'; if (st) log(st); }
+  };
+  if (TOKEN) tokenStatus(true);
   root.__zoebasSync = { show() { host.style.display = ''; } };
   render();
+  ensureToken().catch(e => log(e.message));
 })(typeof window !== 'undefined' ? window : globalThis);
