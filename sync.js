@@ -318,10 +318,13 @@
     TOKEN = null;
     if (pending) return pending;
     pending = new Promise((resolve, reject) => {
-      const cands = navCandidates(); let i = 0;
+      let recent = 0;
+      try { recent = Number(root.sessionStorage.getItem('zoebasSyncNav') || 0); } catch (e) { /* */ }
+      const mayClick = Date.now() - recent > 60000;
+      const cands = mayClick ? navCandidates() : []; let i = 0;
       const poke = () => {
         const el = cands[i++];
-        if (el) { tokenStatus('Sessie ophalen via het menu\u2026'); try { el.click(); } catch (e) { /* */ } }
+        if (el) { tokenStatus('Sessie ophalen via het menu\u2026'); try { root.sessionStorage.setItem('zoebasSyncNav', String(Date.now())); } catch (e) { /* */ } try { el.click(); } catch (e) { /* */ } }
         else tokenStatus('Klik in clubbeheer op een menu-item (bijv. Wedstrijden) om de sessie op te halen\u2026');
       };
       const ok = t => { clearInterval(iv); clearTimeout(to); pending = null; resolve(t); };
@@ -536,7 +539,11 @@
   host = document.createElement('div');
   installTap();
   host.id = 'zoebas-sync-host';
-  document.body.appendChild(host);
+  // Aan <html> hangen i.p.v. <body>: de clubbeheer-app ververst bij navigatie delen van de body.
+  // Een waakhond hangt het paneel terug als het toch uit de DOM verdwijnt.
+  const attach = () => { if (!host.isConnected) (document.documentElement || document.body).appendChild(host); };
+  attach();
+  setInterval(attach, 1000);
   const sh = host.attachShadow({ mode: 'open' });
   sh.innerHTML = `<style>
     :host{all:initial}
@@ -738,7 +745,7 @@
     else { el.className = 'ses'; el.textContent = 'sessie\u2026'; if (st) log(st); }
   };
   if (TOKEN) tokenStatus(true);
-  root.__zoebasSync = { show() { host.style.display = ''; } };
+  root.__zoebasSync = { show() { attach(); host.style.display = ''; } };
   render();
   ensureToken().catch(e => log(e.message));
 })(typeof window !== 'undefined' ? window : globalThis);
