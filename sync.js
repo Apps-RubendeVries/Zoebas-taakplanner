@@ -19,7 +19,7 @@
     api: 'https://api.foys.io',
     supabaseUrl: 'https://ezzynaqeplbxrdvebphx.supabase.co',
     supabaseKey: 'sb_publishable_kSW3nWA4nO2y2FlPY7Mupg_ZNqhQ-kT',
-    pauseMs: 250,
+    pauseMs: 100,
   };
   // Taakplanner-slot -> officialRoleId op basketball.nl
   const ROLE_OF_SLOT = { scheidsrechter1: 25, scheidsrechter2: 25, jury1: 19, jury2: 20, jury3: 21 };
@@ -179,6 +179,13 @@
     return { ops, warnings };
   }
 
+  // Alle rijen dezelfde sleutels geven (ontbrekend of undefined -> null), voor een bulk-insert in PostgREST
+  function uniformRows(rows) {
+    const keys = [];
+    rows.forEach(r => Object.keys(r).forEach(k => { if (!keys.includes(k)) keys.push(k); }));
+    return rows.map(r => { const o = {}; keys.forEach(k => { o[k] = r[k] === undefined ? null : r[k]; }); return o; });
+  }
+
   function putBody(row, matchId, bn) {
     const clear = !bn;
     return {
@@ -248,7 +255,7 @@
   }
 
   const Core = { CFG, ROLE_OF_SLOT, ROLE_NAME, SLOT_LABEL, norm, fullName, nameMatches, splitName, mondayOf, isoLocal,
-    selectMatches, desiredSlots, buildPeople, planMatch, putBody, planPlayerImport, newSpelerFromMember, rowCurrent, asItems };
+    selectMatches, desiredSlots, buildPeople, planMatch, putBody, uniformRows, planPlayerImport, newSpelerFromMember, rowCurrent, asItems };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = Core; return; }
 
@@ -493,9 +500,11 @@
           melding: ok ? (op.warn || null) : (op.warn || ('op basketball.nl staat ' + (now ? now.name : 'niemand'))) }));
       });
     }
-    // Logboek wegschrijven (in blokken)
-    for (let i = 0; i < logRows.length; i += 200) {
-      try { await sb('POST', 'sync_log', logRows.slice(i, i + 200), 'return=minimal'); }
+    // Logboek wegschrijven (in blokken). PostgREST eist bij een bulk-insert dezelfde sleutels in
+    // elke rij ("All object keys must match"), dus vullen we ontbrekende velden aan met null.
+    const rows = uniformRows(logRows);
+    for (let i = 0; i < rows.length; i += 200) {
+      try { await sb('POST', 'sync_log', rows.slice(i, i + 200), 'return=minimal'); }
       catch (e) { log('Let op: logboek niet volledig opgeslagen \u2014 ' + e.message); break; }
     }
     return { runId, check, logRows };
