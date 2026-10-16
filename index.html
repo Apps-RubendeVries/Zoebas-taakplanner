@@ -937,6 +937,10 @@ function autoAssignRange(){
   const matches=alle.filter(hasTime);
   const zonderTijd=alle.length-matches.length;
   if(!matches.length){toast(zonderTijd?('Alleen wedstrijden zonder aanvangstijd ('+zonderTijd+') — niet ingedeeld'):'Geen wedstrijden in deze periode');return;}
+  {const openPlekken=matches.reduce((n,m)=>n+rolesFor(m).filter(r=>!assignmentFor(m.id)[r.key]).length,0);
+   if(!openPlekken){toast('Alles in deze periode is al ingedeeld');return;}
+   const vandaag=isoLocal(new Date());const verleden=matches.filter(m=>m.date<vandaag&&rolesFor(m).some(r=>!assignmentFor(m.id)[r.key])).length;
+   if(!confirm('Hele periode indelen?\n\n'+fmtDate(matches[0].date)+' t/m '+fmtDate(matches[matches.length-1].date)+'\n'+matches.length+' wedstrijd(en), '+openPlekken+' open plek(ken) worden automatisch ingevuld.'+(verleden?'\n\nLet op: '+verleden+' wedstrijd(en) met open plekken liggen in het verleden.':'')+'\n\nKlik OK om door te gaan.'))return;}
   const tempIndeling=JSON.parse(JSON.stringify(app.data.indeling||{}));
   const tempCounts={};
   let filled=0,open=0,already=0;
