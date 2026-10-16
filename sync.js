@@ -265,6 +265,26 @@
     return n;
   }
 
+  /* Spelers verwijderen uit de taakplanner en hun taken leegmaken (zelfde effect als deletePlayer in index.html).
+     Spelers in de poule worden overgeslagen. Geeft nieuwe spelers/indeling/tellingen terug, plus een backup. */
+  function planRemovePlayers(data, ids) {
+    const poule = new Set((data.poule || []).map(x => x.id));
+    const weg = new Set(ids.filter(id => !poule.has(id)));
+    const overgeslagen = ids.filter(id => poule.has(id));
+    const backup = { spelers: [], taken: [] };
+    const indeling = {};
+    Object.keys(data.indeling || {}).forEach(mid => {
+      const asg = data.indeling[mid];
+      if (!asg || typeof asg !== 'object') { indeling[mid] = asg; return; }
+      const n = {};
+      Object.keys(asg).forEach(k => { if (weg.has(asg[k])) backup.taken.push({ match_id: mid, rol: k, speler: asg[k] }); else n[k] = asg[k]; });
+      indeling[mid] = n;
+    });
+    const spelers = (data.spelers || []).filter(p => { if (weg.has(p.id)) { backup.spelers.push(p); return false; } return true; });
+    const tellingen = Object.assign({}, data.tellingen || {}); weg.forEach(id => { delete tellingen[id]; });
+    return { spelers, indeling, tellingen, backup, verwijderd: backup.spelers.length, taken: backup.taken.length, overgeslagen };
+  }
+
   function newSpelerFromMember(m) {
     const sp = (m.firstName || m.lastName)
       ? { voornaam: m.firstName || '', tussenvoegsel: m.nameInfix || '', achternaam: m.lastName || '' }
@@ -276,7 +296,7 @@
   }
 
   const Core = { CFG, ROLE_OF_SLOT, ROLE_NAME, SLOT_LABEL, norm, fullName, nameMatches, splitName, mondayOf, isoLocal,
-    selectMatches, desiredSlots, buildPeople, planMatch, putBody, uniformRows, planPlayerImport, countTasks, newSpelerFromMember, rowCurrent, asItems };
+    selectMatches, desiredSlots, buildPeople, planMatch, putBody, uniformRows, planPlayerImport, countTasks, planRemovePlayers, newSpelerFromMember, rowCurrent, asItems };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = Core; return; }
 
@@ -390,9 +410,9 @@
     return txt ? JSON.parse(txt) : null;
   }
   async function loadState() {
-    const rows = await sb('GET', 'app_state?select=key,data&key=in.(wedstrijden,indeling,spelers,instellingen,poule)');
+    const rows = await sb('GET', 'app_state?select=key,data&key=in.(wedstrijden,indeling,spelers,instellingen,poule,tellingen)');
     const d = {}; rows.forEach(r => { d[r.key] = r.data; });
-    return { wedstrijden: d.wedstrijden || [], indeling: d.indeling || {}, spelers: d.spelers || [], poule: d.poule || [], instellingen: d.instellingen || {} };
+    return { wedstrijden: d.wedstrijden || [], indeling: d.indeling || {}, spelers: d.spelers || [], poule: d.poule || [], instellingen: d.instellingen || {}, tellingen: d.tellingen || {} };
   }
   async function loadSyncFilled(matchIds) {
     const set = new Set();
@@ -735,7 +755,8 @@
         const data = await ensureState();
         const nbb = await readNbbMembers(log);
         const taken = countTasks(data.wedstrijden, data.indeling, isoLocal(new Date()));
-        state.imp = Object.assign(planPlayerImport(data.spelers, nbb.members), { nbb, taken });
+        const poule = new Set((data.poule || []).map(x => x.id));
+        state.imp = Object.assign(planPlayerImport(data.spelers, nbb.members), { nbb, taken, poule });
         setBusy(false); renderImport();
       } catch (e) { fail(e); }
     };
@@ -751,14 +772,17 @@
       ${imp.ontbreekt.length ? (() => {
         const t = id => imp.taken[id] || { totaal: 0, komend: 0 };
         const rows = imp.ontbreekt.slice().sort((a, b) => t(b.id).komend - t(a.id).komend || t(b.id).totaal - t(a.id).totaal || a.naam.localeCompare(b.naam));
-        return `<p><b>Niet in basketball.nl</b> \u2014 in de taakplanner (niet inactief), maar in geen enkel team van het actieve seizoen. Wie nog taken heeft, kan niet worden doorgevoerd.</p>
-        <table><thead><tr><th>Naam</th><th>Team taakplanner</th><th>Bondsnr.</th><th>Komende taken</th><th>Totaal</th></tr></thead><tbody>${rows.map(o => `<tr><td>${esc(o.naam)}</td><td>${esc(o.team || '\u2014')}</td><td>${esc(o.bn || '\u2014')}</td><td>${t(o.id).komend ? `<span class="tag t-leegmaken">${t(o.id).komend}</span>` : '0'}</td><td>${t(o.id).totaal}</td></tr>`).join('')}</tbody></table>`;
+        return `<p><b>Niet in basketball.nl</b> \u2014 in de taakplanner (niet inactief), maar in geen enkel team van het actieve seizoen. Wie nog taken heeft, kan niet worden doorgevoerd.
+          Vink aan wie je uit de taakplanner wilt verwijderen; hun taken worden leeggemaakt. Poule-leden kun je hier niet verwijderen.</p>
+        <table><thead><tr><th></th><th>Naam</th><th>Team taakplanner</th><th>Bondsnr.</th><th>Komende taken</th><th>Totaal</th></tr></thead><tbody>${rows.map(o => `<tr><td>${imp.poule.has(o.id) ? '<span class="tag t-overslaan">poule</span>' : `<input type="checkbox" data-del="${esc(o.id)}">`}</td><td>${esc(o.naam)}</td><td>${esc(o.team || '\u2014')}</td><td>${esc(o.bn || '\u2014')}</td><td>${t(o.id).komend ? `<span class="tag t-leegmaken">${t(o.id).komend}</span>` : '0'}</td><td>${t(o.id).totaal}</td></tr>`).join('')}</tbody></table>
+        <p><button class="dng" id="del">Aangevinkte spelers verwijderen</button> <span class="muted small">Er wordt eerst een backup (JSON) gedownload.</span></p>`;
       })() : ''}
       ${imp.nieuw.length ? `<p><b>Nieuw in basketball.nl</b> \u2014 niet in de taakplanner. Vink aan wie je als speler wilt toevoegen (zonder rol):</p>
         <table><thead><tr><th></th><th>Naam</th><th>Bondsnr.</th><th>Team(s)</th></tr></thead><tbody>${imp.nieuw.map((m, i) => `<tr><td><input type="checkbox" data-new="${i}"></td><td>${esc(m.fullName)}</td><td>${esc(m.bn)}</td><td>${esc(m.rollen.join(', ') || m.teams.join(', '))}</td></tr>`).join('')}</tbody></table>` : ''}
       <div id="msg"></div><div class="log" id="log"></div>`;
     foot.innerHTML = `<button id="back">Terug</button><span style="flex:1"></span><button class="pri" id="save">Opslaan in taakplanner</button>`;
     $('#back').onclick = () => { state.imp = null; renderSpelers(); };
+    if ($('#del')) $('#del').onclick = () => removeSelected(imp);
     $('#save').onclick = async () => {
       const nieuw = [...sh.querySelectorAll('[data-new]:checked')].map(i => newSpelerFromMember(imp.nieuw[Number(i.dataset.new)]));
       if (!Object.keys(imp.patch).length && !nieuw.length) { $('#msg').innerHTML = '<p class="muted">Niets op te slaan.</p>'; return; }
@@ -771,6 +795,44 @@
         log('Klaar');
         $('#foot').innerHTML = '<button id="back2">Opnieuw lezen</button>';
         $('#back2').onclick = () => renderSpelers();
+      } catch (e) { fail(e); }
+    };
+  }
+
+  function downloadJson(name, obj) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' }));
+    a.download = name; (sh.querySelector('.p') || document.body).appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  async function putState(key, data) {
+    await sb('PATCH', 'app_state?key=eq.' + encodeURIComponent(key), { data, updated_at: new Date().toISOString() }, 'return=minimal');
+  }
+  async function removeSelected(imp) {
+    const ids = [...sh.querySelectorAll('[data-del]:checked')].map(i => i.dataset.del);
+    if (!ids.length) { $('#msg').innerHTML = '<p class="muted">Vink eerst spelers aan.</p>'; return; }
+    const namen = imp.ontbreekt.filter(o => ids.includes(o.id)).map(o => o.naam);
+    const taken = ids.reduce((n, id) => n + ((imp.taken[id] || {}).totaal || 0), 0);
+    $('#msg').innerHTML = `<p class="err"><b>${ids.length} speler(s) verwijderen</b> en ${taken} taak/taken leegmaken: ${esc(namen.join(', '))}.</p>
+      <p><button class="dng" id="delok">Ja, verwijderen</button> <button id="delno">Annuleren</button></p>`;
+    $('#delno').onclick = () => { $('#msg').innerHTML = ''; };
+    $('#delok').onclick = async () => {
+      setBusy(true); $('#del').disabled = true;
+      try {
+        cached = null;
+        const data = await ensureState(); // vers inlezen vlak voor het schrijven
+        const plan = planRemovePlayers(data, ids);
+        if (!plan.verwijderd) throw new Error('Geen van deze spelers gevonden (al verwijderd of in de poule)');
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        downloadJson('taakplanner-backup-verwijderd-' + stamp + '.json', { verwijderd_op: new Date().toISOString(), ...plan.backup, vorige: { spelers: data.spelers, indeling: data.indeling, tellingen: data.tellingen } });
+        // Volgorde: eerst taken leeg, dan pas spelers weg, zodat er nooit taken naar een onbekende speler wijzen.
+        await putState('indeling', plan.indeling);
+        await putState('tellingen', plan.tellingen);
+        await putState('spelers', plan.spelers);
+        log('Verwijderd: ' + plan.verwijderd + ' speler(s), ' + plan.taken + ' taak/taken leeggemaakt' + (plan.overgeslagen.length ? ', ' + plan.overgeslagen.length + ' overgeslagen (poule)' : ''));
+        imp.ontbreekt = imp.ontbreekt.filter(o => !plan.backup.spelers.some(p => p.id === o.id));
+        cached = null; setBusy(false); renderImport();
+        $('#msg').innerHTML = `<p>${plan.verwijderd} speler(s) verwijderd en ${plan.taken} taak/taken leeggemaakt in de taakplanner. Draai daarna de Officials-sync voor de betrokken weken om basketball.nl bij te werken.</p>`;
       } catch (e) { fail(e); }
     };
   }
