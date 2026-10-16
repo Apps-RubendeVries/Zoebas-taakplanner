@@ -291,6 +291,8 @@
       : splitName(m.fullName);
     const o = { id: uid(), voornaam: sp.voornaam, tussenvoegsel: sp.tussenvoegsel, achternaam: sp.achternaam,
       team: '', teams: [], role: '', license: '', status: 'available', reason: '', nbbId: m.bn, nbbTeams: [...new Set(m.teams)].sort() };
+    // Team(s) in de taakplanner meteen gelijk aan basketball.nl; rol blijft leeg (zelf kiezen).
+    o.teams = o.nbbTeams.slice(); o.team = o.teams[0] || '';
     o.name = fullName(o);
     return o;
   }
@@ -777,7 +779,7 @@
         <table><thead><tr><th></th><th>Naam</th><th>Team taakplanner</th><th>Bondsnr.</th><th>Komende taken</th><th>Totaal</th></tr></thead><tbody>${rows.map(o => `<tr><td>${imp.poule.has(o.id) ? '<span class="tag t-overslaan">poule</span>' : `<input type="checkbox" data-del="${esc(o.id)}">`}</td><td>${esc(o.naam)}</td><td>${esc(o.team || '\u2014')}</td><td>${esc(o.bn || '\u2014')}</td><td>${t(o.id).komend ? `<span class="tag t-leegmaken">${t(o.id).komend}</span>` : '0'}</td><td>${t(o.id).totaal}</td></tr>`).join('')}</tbody></table>
         <p><button class="dng" id="del">Aangevinkte spelers verwijderen</button> <span class="muted small">Er wordt eerst een backup (JSON) gedownload.</span></p>`;
       })() : ''}
-      ${imp.nieuw.length ? `<p><b>Nieuw in basketball.nl</b> \u2014 niet in de taakplanner. Vink aan wie je als speler wilt toevoegen (zonder rol):</p>
+      ${imp.nieuw.length ? `<p><b>Nieuw in basketball.nl</b> \u2014 niet in de taakplanner. Vink aan wie je als speler wilt toevoegen (met team uit basketball.nl, zonder rol):</p>
         <table><thead><tr><th></th><th>Naam</th><th>Bondsnr.</th><th>Team(s)</th></tr></thead><tbody>${imp.nieuw.map((m, i) => `<tr><td><input type="checkbox" data-new="${i}"></td><td>${esc(m.fullName)}</td><td>${esc(m.bn)}</td><td>${esc(m.rollen.join(', ') || m.teams.join(', '))}</td></tr>`).join('')}</tbody></table>` : ''}
       <div id="msg"></div><div class="log" id="log"></div>`;
     foot.innerHTML = `<button id="back">Terug</button><span style="flex:1"></span><button class="pri" id="save">Opslaan in taakplanner</button>`;
