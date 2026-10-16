@@ -241,7 +241,28 @@
         changes.push({ id: p.id, naam: fullName(p), bn: p.nbbId || '', nieuwBn: false, van: curTeams, naar: [] });
       }
     });
-    return { patch, changes, nieuw, dubbel, conflict };
+    // Spelers in de taakplanner die in geen enkel NBB-team (meer) voorkomen. Inactieven en twijfelgevallen tellen niet mee.
+    const twijfel = new Set(dubbel.flatMap(x => x.kandidaten).concat(conflict.map(x => x.speler)));
+    const ontbreekt = spelers.filter(p => !assigned[p.id] && p.status !== 'inactive' && !twijfel.has(p.id))
+      .map(p => ({ id: p.id, naam: fullName(p), team: p.team || '', bn: p.nbbId ? String(p.nbbId) : '' }));
+    return { patch, changes, nieuw, dubbel, conflict, ontbreekt };
+  }
+
+  /* Taken per speler tellen: totaal en vanaf vandaag (alleen thuiswedstrijden met indeling). */
+  function countTasks(wedstrijden, indeling, today) {
+    const datum = {}; (wedstrijden || []).forEach(w => { datum[w.id] = w.date || ''; });
+    const n = {};
+    Object.keys(indeling || {}).forEach(mid => {
+      const asg = indeling[mid];
+      if (!asg || typeof asg !== 'object' || !(mid in datum)) return;
+      Object.values(asg).forEach(pid => {
+        if (!pid || typeof pid !== 'string') return;
+        const c = n[pid] || (n[pid] = { totaal: 0, komend: 0 });
+        c.totaal++;
+        if (datum[mid] >= today) c.komend++;
+      });
+    });
+    return n;
   }
 
   function newSpelerFromMember(m) {
@@ -255,7 +276,7 @@
   }
 
   const Core = { CFG, ROLE_OF_SLOT, ROLE_NAME, SLOT_LABEL, norm, fullName, nameMatches, splitName, mondayOf, isoLocal,
-    selectMatches, desiredSlots, buildPeople, planMatch, putBody, uniformRows, planPlayerImport, newSpelerFromMember, rowCurrent, asItems };
+    selectMatches, desiredSlots, buildPeople, planMatch, putBody, uniformRows, planPlayerImport, countTasks, newSpelerFromMember, rowCurrent, asItems };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = Core; return; }
 
@@ -713,7 +734,8 @@
         cached = null;
         const data = await ensureState();
         const nbb = await readNbbMembers(log);
-        state.imp = Object.assign(planPlayerImport(data.spelers, nbb.members), { nbb });
+        const taken = countTasks(data.wedstrijden, data.indeling, isoLocal(new Date()));
+        state.imp = Object.assign(planPlayerImport(data.spelers, nbb.members), { nbb, taken });
         setBusy(false); renderImport();
       } catch (e) { fail(e); }
     };
@@ -723,9 +745,15 @@
     const imp = state.imp, body = $('#body'), foot = $('#foot');
     const nieuwBn = imp.changes.filter(c => c.nieuwBn).length;
     body.innerHTML = `<div class="sum"><span>${imp.nbb.members.length} NBB-leden in ${imp.nbb.teams.length} teams</span><span>${nieuwBn} nieuw bondsnummer</span>
-      <span>${imp.changes.length} speler(s) bijgewerkt</span><span>${imp.nieuw.length} nieuw in basketball.nl</span>${imp.dubbel.length + imp.conflict.length ? `<span class="err">${imp.dubbel.length + imp.conflict.length} twijfelgeval(len)</span>` : ''}</div>
+      <span>${imp.changes.length} speler(s) bijgewerkt</span><span>${imp.nieuw.length} nieuw in basketball.nl</span><span${imp.ontbreekt.length ? ' class="err"' : ''}>${imp.ontbreekt.length} niet in basketball.nl</span>${imp.dubbel.length + imp.conflict.length ? `<span class="err">${imp.dubbel.length + imp.conflict.length} twijfelgeval(len)</span>` : ''}</div>
       ${imp.changes.length ? `<p><b>Wijzigingen</b></p><table><thead><tr><th>Speler</th><th>Bondsnr.</th><th>NBB-teams nu</th><th>Wordt</th></tr></thead><tbody>${imp.changes.map(c => `<tr><td>${esc(c.naam)}</td><td>${esc(c.bn)}${c.nieuwBn ? ' <span class="tag t-toevoegen">nieuw</span>' : ''}</td><td>${esc(c.van.join(', ') || '\u2014')}</td><td>${esc(c.naar.join(', ') || '\u2014')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Bondsnummers en NBB-teams zijn al bijgewerkt.</p>'}
       ${imp.dubbel.length || imp.conflict.length ? `<p><b>Twijfelgevallen</b> \u2014 niet gekoppeld; vul het bondsnummer in de taakplanner in:</p><ul>${imp.dubbel.map(x => `<li>${esc(x.member.fullName)} (${esc(x.member.bn)}): ${x.kandidaten.length} spelers met deze naam</li>`).join('')}${imp.conflict.map(x => `<li>${esc(x.member.fullName)} (${esc(x.member.bn)}): speler is al gekoppeld aan ${esc(x.ander)}</li>`).join('')}</ul>` : ''}
+      ${imp.ontbreekt.length ? (() => {
+        const t = id => imp.taken[id] || { totaal: 0, komend: 0 };
+        const rows = imp.ontbreekt.slice().sort((a, b) => t(b.id).komend - t(a.id).komend || t(b.id).totaal - t(a.id).totaal || a.naam.localeCompare(b.naam));
+        return `<p><b>Niet in basketball.nl</b> \u2014 in de taakplanner (niet inactief), maar in geen enkel team van het actieve seizoen. Wie nog taken heeft, kan niet worden doorgevoerd.</p>
+        <table><thead><tr><th>Naam</th><th>Team taakplanner</th><th>Bondsnr.</th><th>Komende taken</th><th>Totaal</th></tr></thead><tbody>${rows.map(o => `<tr><td>${esc(o.naam)}</td><td>${esc(o.team || '\u2014')}</td><td>${esc(o.bn || '\u2014')}</td><td>${t(o.id).komend ? `<span class="tag t-leegmaken">${t(o.id).komend}</span>` : '0'}</td><td>${t(o.id).totaal}</td></tr>`).join('')}</tbody></table>`;
+      })() : ''}
       ${imp.nieuw.length ? `<p><b>Nieuw in basketball.nl</b> \u2014 niet in de taakplanner. Vink aan wie je als speler wilt toevoegen (zonder rol):</p>
         <table><thead><tr><th></th><th>Naam</th><th>Bondsnr.</th><th>Team(s)</th></tr></thead><tbody>${imp.nieuw.map((m, i) => `<tr><td><input type="checkbox" data-new="${i}"></td><td>${esc(m.fullName)}</td><td>${esc(m.bn)}</td><td>${esc(m.rollen.join(', ') || m.teams.join(', '))}</td></tr>`).join('')}</tbody></table>` : ''}
       <div id="msg"></div><div class="log" id="log"></div>`;
