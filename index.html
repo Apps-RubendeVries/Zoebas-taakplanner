@@ -1078,8 +1078,9 @@ function bindNew(){
 const views={
  dashboard(){
   const todayIso=isoLocal(new Date());
-  const half=app.dashHalf||seasonHalf(todayIso);
   const {y1,y2}=seasonYears();
+  // Standaard: na 19 december al de 2e seizoenshelft tonen (de 1e helft is dan uitgespeeld).
+  const half=app.dashHalf||((seasonHalf(todayIso)===2||todayIso.slice(5)>'12-19')?2:1);
   const from=half===1?y1+'-09-01':y2+'-01-01',to=half===1?y1+'-12-31':y2+'-05-31';
   const halfMatches=app.data.wedstrijden.filter(w=>!w.away&&w.date>=from&&w.date<=to).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   let totalRoles=0,filled=0,conflicts=0;
