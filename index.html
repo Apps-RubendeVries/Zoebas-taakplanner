@@ -620,7 +620,10 @@ function teamGapMinutes(teams,match){
 }
 function teamSlotDistance(team,match){if(!normTeam(team))return null;const times=dayTimes(match.date);const idx=times.indexOf(toMin(match.time));let best=null;app.data.wedstrijden.forEach(w=>{if(w.date!==match.date||w.away||!sameTeam(w.homeTeam,team))return;const wi=times.indexOf(toMin(w.time));if(wi<0)return;const d=Math.abs(wi-idx);if(d===0)return;if(best===null||d<best)best=d});return best}
 function rolesFor(match){const roles=[{key:'scheidsrechter1',label:'Scheidsrechter 1',type:'scheidsrechter'},{key:'scheidsrechter2',label:'Scheidsrechter 2',type:'scheidsrechter'},{key:'jury1',label:'Scorer',type:'jury'},{key:'jury2',label:'Timer',type:'jury'}];if(match.extra24)roles.push({key:'jury3',label:'24-seconde operator',type:'jury'});return roles}
-function assignmentFor(id){return app.data.indeling[id]||{}}
+// Toewijzingen aan personen die niet (meer) bestaan in spelers/poule tellen als leeg; anders staat een wedstrijd onterecht op 'Volledig'.
+let _knownIds=null;
+function knownPersonIds(){const sp=app.data.spelers||[],po=app.data.poule||[];if(!_knownIds||_knownIds.sp!==sp||_knownIds.po!==po||_knownIds.n!==sp.length+po.length){_knownIds={sp,po,n:sp.length+po.length,set:new Set(sp.map(x=>x.id).concat(po.map(x=>x.id)))}}return _knownIds.set}
+function assignmentFor(id){const a=app.data.indeling[id];if(!a)return{};const ids=knownPersonIds();let clean=null;for(const k in a){if(a[k]&&!ids.has(a[k])){clean=clean||{...a};delete clean[k]}}return clean||a}
 function statusFor(match){const roles=rolesFor(match),asg=assignmentFor(match.id),filled=roles.filter(r=>asg[r.key]).length;if(!filled)return['Niet ingedeeld','neutral'];if(filled===roles.length)return['Volledig','ok'];return[filled+'/'+roles.length+' ingevuld','warn']}
 function player(id){return app.data.spelers.find(p=>p.id===id)}
 function pouleMember(id){return (app.data.poule||[]).find(p=>p.id===id)}
