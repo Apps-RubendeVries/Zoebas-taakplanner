@@ -165,6 +165,9 @@
   .mini-list{display:flex;flex-direction:column}
   .mini-row{display:flex;align-items:center;gap:var(--sp-3);padding:12px 0;border-bottom:1px solid var(--border-soft)}
   .mini-row:last-child{border-bottom:none}
+  .dash-day{font-family:var(--display);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:14px 0 4px;border-bottom:1px solid var(--border-soft)}
+  .dash-day:first-child{padding-top:0}
+  .dash-day.past{opacity:.7}
   .mini-row .tm{font-family:var(--display);font-weight:700;font-size:14px;min-width:48px;color:var(--muted)}
   .mini-row .mt{flex:1;font-weight:600;font-size:13.5px}
   .mini-row .mt span{color:var(--faint);font-weight:400;margin:0 6px}
@@ -1064,6 +1067,9 @@ function renderPicker(q){
 function bindNew(){
   const ps=document.getElementById('pickerScrim');if(ps)ps.onclick=closePicker;
   document.querySelectorAll('[data-goto-indeling]').forEach(b=>b.onclick=()=>{app.tab='indeling';render();});
+  document.querySelectorAll('[data-dash-half]').forEach(b=>b.onclick=()=>{app.dashHalf=Number(b.dataset.dashHalf);render();});
+  document.querySelectorAll('[data-goto-indeling-half]').forEach(b=>b.onclick=()=>{app.tab='indeling';applyPreset(b.dataset.gotoIndelingHalf==='1'?'h1':'h2');});
+  {const t=document.getElementById('dashAllToggle');if(t)t.onclick=()=>{app.dashAll=!app.dashAll;render();};}
   document.querySelectorAll('[data-pick-match]').forEach(b=>b.onclick=()=>openPicker(b.dataset.pickMatch,b.dataset.pickRole));
   document.querySelectorAll('[data-clear-slot]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();assignRole(b.dataset.clearMatch,b.dataset.clearRole,'');});
   document.querySelectorAll('[data-lic-select]').forEach(s=>s.onchange=()=>setRefLic(s.dataset.licMatch,s.dataset.licRole,s.value));
@@ -1071,16 +1077,24 @@ function bindNew(){
 
 const views={
  dashboard(){
-  const weekMatches=app.data.wedstrijden.filter(w=>!w.away&&inWeek(w.date,app.weekOffset)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  const todayIso=isoLocal(new Date());
+  const half=app.dashHalf||seasonHalf(todayIso);
+  const {y1,y2}=seasonYears();
+  const from=half===1?y1+'-09-01':y2+'-01-01',to=half===1?y1+'-12-31':y2+'-05-31';
+  const halfMatches=app.data.wedstrijden.filter(w=>!w.away&&w.date>=from&&w.date<=to).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   let totalRoles=0,filled=0,conflicts=0;
-  weekMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
+  halfMatches.forEach(m=>{const roles=rolesFor(m);totalRoles+=roles.length;roles.forEach(r=>{const pid=assignmentFor(m.id)[r.key];if(pid)filled++;if(pid&&slotWarns(pid,m,r).some(x=>x.sev==='block'))conflicts++;});});
   const open=totalRoles-filled;
-  const full=weekMatches.filter(m=>mStatus(m)[0]==='ok').length;
+  const full=halfMatches.filter(m=>mStatus(m)[0]==='ok').length;
   const avail=app.data.spelers.filter(p=>p.status==='available').length;
-  const s=weekStart(app.weekOffset),e=new Date(s);e.setDate(e.getDate()+6);
-  return `<div class="page-head"><div class="lead"><h2>Overzicht — deze week</h2><p>${s.toLocaleDateString('nl-NL')} t/m ${e.toLocaleDateString('nl-NL')} · ${weekMatches.length} wedstrijd(en). Zie in één oogopslag wat er nog moet gebeuren.</p></div><div class="head-tools"><button class="btn ghost" data-week="-1"><i data-lucide="chevron-left"></i> Vorige</button><button class="btn ghost" data-week="1">Volgende <i data-lucide="chevron-right"></i></button><button class="btn secondary" id="copyWeekBtn"><i data-lucide="clipboard"></i> Kopieer week</button></div></div>
-  <div class="stat-grid"><div class="stat primary"><div><div class="k">Nog in te delen</div><div class="v">${open}</div><div class="sub">taken zonder persoon${conflicts>0?` · ${conflicts} conflict${conflicts>1?'en':''}`:''}</div></div><button class="btn primary" data-goto-indeling><i data-lucide="wand-2"></i> Naar indeling</button></div><div class="stat"><div class="k">Volledig ingedeeld</div><div class="v">${full}</div><div class="sub">van ${weekMatches.length} wedstrijden</div></div><div class="stat"><div class="k">Spelers beschikbaar</div><div class="v">${avail}</div><div class="sub">van ${app.data.spelers.length} in de pool</div></div></div>
-  <div class="card"><div class="section-h"><h3>Weekplanning</h3><span class="badge neutral">${filled}/${totalRoles} taken</span></div><div class="mini-list">${weekMatches.length?weekMatches.map(m=>{const st=mStatus(m);return `<div class="mini-row" data-open-match="${m.id}"><span class="tm">${esc(m.time)}</span><span class="mt">${esc(m.homeTeam)}<span>vs</span>${esc(m.awayTeam)}</span><span class="badge ${st[0]}"><span class="d"></span>${st[1]}</span></div>`;}).join(''):'<div class="empty-list">Geen wedstrijden in deze week.</div>'}</div></div>`;
+  const showAll=!!app.dashAll;
+  const shown=showAll?halfMatches:halfMatches.filter(m=>mStatus(m)[0]!=='ok');
+  const groups={};shown.forEach(m=>(groups[m.date]=groups[m.date]||[]).push(m));
+  const list=Object.keys(groups).sort().map(d=>`<div class="dash-day${d<todayIso?' past':''}">${esc(dayLabel(d))}${d<todayIso?' <span class="faint">· verstreken</span>':''}</div>`+groups[d].map(m=>{const st=mStatus(m);return `<div class="mini-row" data-open-match="${m.id}"><span class="tm">${esc(m.time||'—')}</span><span class="mt">${esc(m.homeTeam)}<span>vs</span>${esc(m.awayTeam)}</span><span class="badge ${st[0]}"><span class="d"></span>${st[1]}</span></div>`;}).join('')).join('');
+  const label=half===1?'1e seizoenshelft':'2e seizoenshelft';
+  return `<div class="page-head"><div class="lead"><h2>Overzicht — ${label}</h2><p>${nlDate(from)} t/m ${nlDate(to)} · ${halfMatches.length} thuiswedstrijd(en). Zie in één oogopslag wat er nog moet gebeuren.</p></div><div class="head-tools"><div class="seg"><button data-dash-half="1" class="${half===1?'active':''}">1e helft</button><button data-dash-half="2" class="${half===2?'active':''}">2e helft</button></div></div></div>
+  <div class="stat-grid"><div class="stat primary"><div><div class="k">Nog in te delen</div><div class="v">${open}</div><div class="sub">taken zonder persoon${conflicts>0?` · ${conflicts} conflict${conflicts>1?'en':''}`:''}</div></div><button class="btn primary" data-goto-indeling-half="${half}"><i data-lucide="wand-2"></i> Naar indeling</button></div><div class="stat"><div class="k">Volledig ingedeeld</div><div class="v">${full}</div><div class="sub">van ${halfMatches.length} wedstrijden</div></div><div class="stat"><div class="k">Spelers beschikbaar</div><div class="v">${avail}</div><div class="sub">van ${app.data.spelers.length} in de pool</div></div></div>
+  <div class="card"><div class="section-h"><h3>${showAll?'Alle wedstrijden':'Nog niet compleet'}</h3><div style="display:flex;gap:8px;align-items:center"><span class="badge neutral">${filled}/${totalRoles} taken</span><button class="btn ghost" id="dashAllToggle">${showAll?'Alleen onvolledige':'Toon alle wedstrijden'}</button></div></div><div class="mini-list">${list||`<div class="empty-list">${halfMatches.length?'Alle wedstrijden in deze seizoenshelft zijn volledig ingedeeld.':'Geen thuiswedstrijden in deze seizoenshelft.'}</div>`}</div></div>`;
  },
  wedstrijden(){
   const list=app.data.wedstrijden.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
