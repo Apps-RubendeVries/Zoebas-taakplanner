@@ -677,7 +677,7 @@
     <div class="f" id="foot"></div>
   </div>`;
   const $ = s => sh.querySelector(s);
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtD = d => { const x = new Date(d + 'T00:00:00'); return x.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: '2-digit' }); };
   const matchUrl = id => 'https://club.basketball.nl/management/' + CFG.org + '/spas/competition/matches/' + encodeURIComponent(id);
   const state = { tab: 'off', busy: false, run: null, done: null, imp: null, logLines: [] };
@@ -735,11 +735,13 @@
     body.innerHTML = '<p class="muted">Gegevens laden\u2026</p>'; foot.innerHTML = '';
     let data; try { data = await ensureState(); } catch (e) { if (e.needLogin) return renderLogin(e.message); body.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; return; }
     const today = isoLocal(new Date()); const curMonday = mondayOf(today);
-    const pub = [...(data.instellingen.gepubliceerd || [])].sort();
+    // Alleen echte datums (JJJJ-MM-DD) doorlaten: deze lijst komt uit de database en belandt hieronder in de pagina
+    // van club.basketball.nl. Zonder deze controle kon een bewerkte waarde daar code laten draaien.
+    const pub = [...(data.instellingen.gepubliceerd || [])].map(String).filter(w => /^\d{4}-\d{2}-\d{2}$/.test(w)).sort();
     const weekCount = w => (data.wedstrijden || []).filter(m => !m.away && m.date && mondayOf(m.date) === w).length;
     body.innerHTML = `<p>Kies de gepubliceerde weken die je wilt doorvoeren. De taakplanner is leidend: nieuwe namen worden toegevoegd, gewijzigde vervangen.
       Er wordt pas iets geschreven als je na de droge run op <b>Doorvoeren</b> klikt.</p>
-      <div class="weeks">${pub.map(w => `<label><input type="checkbox" value="${w}" ${w >= curMonday ? 'checked' : ''}> week ${fmtD(w)} <span class="muted">(${weekCount(w)})</span></label>`).join('') || '<span class="muted">Er zijn nog geen weken gepubliceerd in de taakplanner.</span>'}</div>
+      <div class="weeks">${pub.map(w => `<label><input type="checkbox" value="${esc(w)}" ${w >= curMonday ? 'checked' : ''}> week ${esc(fmtD(w))} <span class="muted">(${weekCount(w)})</span></label>`).join('') || '<span class="muted">Er zijn nog geen weken gepubliceerd in de taakplanner.</span>'}</div>
       <label class="opt"><input type="checkbox" id="past"> ook wedstrijden in het verleden</label>
       <label class="opt"><input type="checkbox" id="clr" checked> rijen leegmaken als de plek in de planner leeg is</label>
       <p class="small muted">Leegmaken gebeurt alleen bij rijen die door de sync zijn gevuld of waarvan de persoon in de taakplanner staat.</p>
