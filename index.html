@@ -134,7 +134,7 @@
   .mono-faint{color:var(--faint);font-variant-numeric:tabular-nums}
 
   /* ---------- form controls ---------- */
-  .ctrl,input[type=text],input[type=date],input[type=time],input[type=search],input[type=number],input[type=password],select,textarea{display:block;width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;color:var(--text);outline:none;transition:border-color .12s}
+  .ctrl,input[type=text],input[type=date],input[type=time],input[type=search],input[type=number],input[type=password],input[type=email],select,textarea{display:block;width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;color:var(--text);outline:none;transition:border-color .12s}
   .ctrl:focus,input:focus,select:focus,textarea:focus{border-color:var(--primary)}
   input::placeholder{color:var(--faint)}
   textarea{min-height:84px}
@@ -384,10 +384,11 @@
   <div class="auth-box">
     <div class="auth-mark"></div>
     <h1>Basketbal Indeling</h1>
-    <p>Voer het wachtwoord in om verder te gaan.</p>
+    <p>Log in met het beheeraccount om verder te gaan.</p>
+    <input id="authMail" type="email" placeholder="E-mailadres" autocomplete="username" autocapitalize="none" spellcheck="false">
     <input id="authInput" type="password" placeholder="Wachtwoord" autocomplete="current-password">
-    <div id="authError" class="auth-error" style="display:none">Onjuist wachtwoord</div>
-    <button id="authBtn" class="btn primary">Ontgrendelen</button>
+    <div id="authError" class="auth-error" style="display:none"></div>
+    <button id="authBtn" class="btn primary">Inloggen</button>
   </div>
 </div>
 
@@ -398,7 +399,7 @@
     <div class="side-foot">Wedstrijdtaken eerlijk verdeeld<br>over je vereniging</div>
   </aside>
   <main>
-    <div class="topbar"><div><div class="crumb" id="topCrumb"></div><h1 id="pageTitle">Dashboard</h1></div><a class="help-btn" href="Handleiding-Taakplanner.pdf" download title="Handleiding downloaden">?</a></div>
+    <div class="topbar"><div><div class="crumb" id="topCrumb"></div><h1 id="pageTitle">Dashboard</h1></div><div style="display:flex;gap:8px;align-items:center"><a class="help-btn" href="Handleiding-Taakplanner.pdf" download title="Handleiding downloaden">?</a><button type="button" class="help-btn" id="logoutBtn" title="Afmelden" aria-label="Afmelden" style="border:0;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button></div></div>
     <div id="view" class="content"></div>
   </main>
 </div>
@@ -423,9 +424,13 @@ function saveAll(){Object.entries(KEYS).forEach(([k,v])=>localStorage.setItem(v,
 /* ===== Supabase: gedeelde database ===== */
 const SUPABASE_URL='https://ezzynaqeplbxrdvebphx.supabase.co';
 const SUPABASE_KEY='sb_publishable_kSW3nWA4nO2y2FlPY7Mupg_ZNqhQ-kT';
+const AUTH_STORE='bball_sessie'; // sessie van het beheeraccount (Supabase Auth)
 let sb=null;
-try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);}catch(e){console.warn('Supabase init mislukt',e);}
+try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:AUTH_STORE}});}catch(e){console.warn('Supabase init mislukt',e);}
 let _cloudReady=false,_pushTimer=null,_lastPushed={};
+// Schrijven mag alleen een ingelogde beheerder; mislukt het opslaan, dan moet je dat zien.
+let _pushFoutGemeld=false;
+function _pushFout(){if(_pushFoutGemeld)return;_pushFoutGemeld=true;toast('Let op: niet opgeslagen in de database. Controleer je verbinding of log opnieuw in.');}
 function _isEmptyVal(v){if(v==null)return true;if(Array.isArray(v))return v.length===0;if(typeof v==='object')return Object.keys(v).length===0;return false;}
 function pushToCloud(){if(!sb||!_cloudReady)return;clearTimeout(_pushTimer);_pushTimer=setTimeout(_doPush,400);}
 async function _doPush(){
@@ -433,7 +438,7 @@ async function _doPush(){
   // duw alleen onderdelen die lokaal echt gewijzigd zijn (minder kans op botsing met andere bewerkers)
   const rows=[];Object.keys(KEYS).forEach(k=>{const s=JSON.stringify(app.data[k]??null);if(_lastPushed[k]!==s)rows.push({key:k,data:app.data[k]??null,updated_at:stamp,_s:s});});
   if(!rows.length)return;
-  try{const {error}=await sb.from('app_state').upsert(rows.map(({_s,...r})=>r),{onConflict:'key'});if(error){console.warn('Cloud-opslag mislukt',error);}else{rows.forEach(r=>_lastPushed[r.key]=r._s);}}catch(e){console.warn('Cloud-opslag fout',e);}
+  try{const {error}=await sb.from('app_state').upsert(rows.map(({_s,...r})=>r),{onConflict:'key'});if(error){console.warn('Cloud-opslag mislukt',error);_pushFout();}else{rows.forEach(r=>_lastPushed[r.key]=r._s);_pushFoutGemeld=false;}}catch(e){console.warn('Cloud-opslag fout',e);_pushFout();}
 }
 async function syncFromCloud(forceRender){
   if(!sb)return false;
@@ -459,6 +464,7 @@ function initCloud(){
   if(!sb){toast('Geen database-verbinding — offline modus');return;}
   syncFromCloud(true).then(ok=>{
     if(ok){toast('Verbonden met gedeelde database');
+      try{sb.removeAllChannels();}catch(e){}
       try{sb.channel('app_state_changes').on('postgres_changes',{event:'*',schema:'public',table:'app_state'},()=>syncFromCloud(false)).subscribe();}catch(e){console.warn('Realtime mislukt',e);}
       loadNbbSync();try{sb.channel('sync_log_changes').on('postgres_changes',{event:'INSERT',schema:'public',table:'sync_log'},()=>{clearTimeout(_nbbTimer);_nbbTimer=setTimeout(loadNbbSync,1500);}).subscribe();}catch(e){console.warn('Realtime sync_log mislukt',e);}
     }else{toast('Geen database-verbinding — offline modus');}
@@ -1427,18 +1433,52 @@ function exportHistory(){const rows=app.data.spelers.map(p=>{const c=app.data.te
 function archiveSeason(){const s=app.data.instellingen.seizoen||'Onbekend seizoen';if(!confirm(`Huidige tellingen archiveren als ${s}?`))return;app.data.archief[s]=JSON.parse(JSON.stringify(app.data.tellingen));app.data.tellingen={};saveAll();render();toast('Nieuw seizoen gestart')}
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const t=e.target;if(!t||t.tagName!=='INPUT')return;if(t.closest&&t.closest('dialog'))return;e.preventDefault();t.blur();});
 updateCounts();render();
-initCloud();
 
-/* ===== wachtwoordbeveiliging (minimale bescherming) ===== */
-const PW_HASH='f9f1edbdd28589eacca335ded87671fab9efe43a06331e49fa71c9a5af652037';
-const AUTH_KEY='bball_auth';
-async function sha256hex(s){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
-function authed(){return localStorage.getItem(AUTH_KEY)===PW_HASH;}
-function showGate(){const g=document.getElementById('authGate');if(g)g.style.display='flex';const i=document.getElementById('authInput');if(i){i.value='';setTimeout(()=>i.focus(),50);}}
+/* ===== inloggen (Supabase Auth) =====
+   De database geeft alleen een ingelogde beheerder schrijfrechten. Het inlogscherm dekt de app af
+   tot er een geldige sessie is; pas daarna wordt de gedeelde database gekoppeld (initCloud). */
+function heeftSessie(){try{return !!localStorage.getItem(AUTH_STORE);}catch(e){return false;}}
+function showGate(msg){const g=document.getElementById('authGate');if(g)g.style.display='flex';const err=document.getElementById('authError');if(err){err.textContent=msg||'';err.style.display=msg?'block':'none';}const p=document.getElementById('authInput');if(p)p.value='';const m=document.getElementById('authMail');setTimeout(()=>{const f=(m&&!m.value)?m:p;if(f)f.focus();},50);}
 function hideGate(){const g=document.getElementById('authGate');if(g)g.style.display='none';}
-function logout(){localStorage.removeItem(AUTH_KEY);showGate();}
-async function tryUnlock(){const i=document.getElementById('authInput'),err=document.getElementById('authError');if(!i)return;const h=await sha256hex(i.value);if(h===PW_HASH){localStorage.setItem(AUTH_KEY,PW_HASH);if(err)err.style.display='none';hideGate();}else{if(err)err.style.display='block';i.value='';i.focus();}}
-(function initGate(){const btn=document.getElementById('authBtn'),inp=document.getElementById('authInput');if(btn)btn.onclick=tryUnlock;if(inp)inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();tryUnlock();}};if(authed())hideGate();else showGate();})();
+function inlogFout(error){const code=(error&&error.code)||'',st=error&&error.status;if(code==='invalid_credentials'||st===400)return 'E-mailadres of wachtwoord klopt niet.';if(st===429)return 'Te veel pogingen. Wacht even en probeer het opnieuw.';if(!st)return 'Inloggen lukt nu niet. Controleer de internetverbinding.';return 'Inloggen lukt nu niet. Probeer het later opnieuw.';}
+let _inlogBezig=false;
+async function tryLogin(){
+  const m=document.getElementById('authMail'),p=document.getElementById('authInput'),btn=document.getElementById('authBtn');
+  if(_inlogBezig||!m||!p)return;
+  if(!sb){showGate('Geen verbinding met de database. Laad de pagina opnieuw.');return;}
+  const mail=m.value.trim(),ww=p.value;if(!mail||!ww){showGate('Vul je e-mailadres en wachtwoord in.');return;}
+  _inlogBezig=true;if(btn){btn.disabled=true;btn.textContent='Bezig…';}
+  try{
+    const {data,error}=await sb.auth.signInWithPassword({email:mail,password:ww});
+    if(error||!data||!data.session){showGate(inlogFout(error));}
+    else{hideGate();initCloud();}
+  }catch(e){showGate('Inloggen lukt nu niet. Controleer de internetverbinding.');}
+  finally{_inlogBezig=false;if(btn){btn.disabled=false;btn.textContent='Inloggen';}}
+}
+/* Afmelden geldt alleen voor dit apparaat (scope local) en haalt ook de lokaal bewaarde gegevens weg. */
+async function logout(){
+  if(!confirm('Afmelden op dit apparaat? Daarna moet je opnieuw inloggen.'))return;
+  clearTimeout(_pushTimer);
+  try{if(sb&&_cloudReady)await _doPush();}catch(e){}
+  try{if(sb)await sb.auth.signOut({scope:'local'});}catch(e){}
+  try{localStorage.removeItem(AUTH_STORE);localStorage.removeItem('bball_auth');Object.values(KEYS).forEach(k=>localStorage.removeItem(k));}catch(e){}
+  location.reload();
+}
+(function startAuth(){
+  try{localStorage.removeItem('bball_auth');}catch(e){} // oude wachtwoordvlag
+  const btn=document.getElementById('authBtn'),inp=document.getElementById('authInput'),mail=document.getElementById('authMail'),uit=document.getElementById('logoutBtn');
+  const enter=e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();tryLogin();}};
+  if(btn)btn.onclick=tryLogin;if(inp)inp.onkeydown=enter;if(mail)mail.onkeydown=enter;if(uit)uit.onclick=logout;
+  if(!sb){if(heeftSessie()){hideGate();toast('Geen database-verbinding — offline modus');}else showGate('Geen verbinding met de database. Controleer de internetverbinding en laad de pagina opnieuw.');return;}
+  if(heeftSessie())hideGate();else showGate();
+  // Geen Supabase-aanroepen binnen deze callback zelf (dat kan vastlopen): uitstellen.
+  sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT')setTimeout(()=>{_cloudReady=false;try{sb.removeAllChannels();}catch(e){}showGate('Je bent afgemeld. Log opnieuw in.');},0);});
+  sb.auth.getSession().then(({data,error})=>{
+    if(data&&data.session){hideGate();initCloud();}
+    else if(error&&heeftSessie()){hideGate();toast('Geen database-verbinding — offline modus');}
+    else showGate();
+  }).catch(()=>{if(heeftSessie()){hideGate();toast('Geen database-verbinding — offline modus');}else showGate();});
+})();
 </script>
 
 

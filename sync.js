@@ -9,6 +9,8 @@
  * Daarnaast: spelers/teamindeling uit basketball.nl lezen en bondsnummer + NBB-teams aanvullen.
  *
  * Het toegangstoken van de clubbeheer-sessie wordt alleen in het geheugen gebruikt: nooit gelogd of opgeslagen.
+ * Hetzelfde geldt voor de sessie van de taakplanner: het script vraagt je in te loggen met het beheeraccount,
+ * omdat de database alleen een ingelogde beheerder laat schrijven.
  */
 (function (root) {
   'use strict';
@@ -402,11 +404,44 @@
     const txt = await res.text();
     return txt ? JSON.parse(txt) : null;
   }
+  /* Taakplanner-database: alleen een ingelogde beheerder mag de indeling lezen en wijzigen. De sessie
+     (toegangs- en verversingstoken) blijft in deze closure: nooit loggen, tonen of opslaan. Na het
+     sluiten of herladen van de pagina moet je dus opnieuw inloggen. */
+  let SB = null; // { access_token, refresh_token, expires_at }
+  let plannerStatus = () => {};
+  function needLogin(msg) { const e = new Error(msg || 'Log eerst in bij de taakplanner.'); e.needLogin = true; return e; }
+  async function sbAuth(grant, body) {
+    let res;
+    try {
+      res = await origFetch(CFG.supabaseUrl + '/auth/v1/token?grant_type=' + grant, {
+        method: 'POST', headers: { apikey: CFG.supabaseKey, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) });
+    } catch (e) { throw new Error('Inloggen bij de taakplanner lukt nu niet. Controleer de internetverbinding.'); }
+    let j = null; try { j = await res.json(); } catch (e) { /* */ }
+    if (!res.ok || !j || !j.access_token) {
+      const err = new Error(res.status === 400 ? 'E-mailadres of wachtwoord klopt niet.'
+        : res.status === 429 ? 'Te veel pogingen. Wacht even en probeer het opnieuw.'
+        : 'Inloggen bij de taakplanner lukt nu niet (' + res.status + ').');
+      err.status = res.status; throw err;
+    }
+    SB = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600) };
+    plannerStatus(true);
+    return SB;
+  }
+  function sbLogin(email, password) { return sbAuth('password', { email, password }); }
+  function sbDrop(msg) { SB = null; plannerStatus(false); return needLogin(msg || 'De taakplanner-sessie is verlopen. Log opnieuw in.'); }
+  async function sbToken() {
+    if (!SB) throw needLogin();
+    if (SB.expires_at > Date.now() / 1000 + 30) return SB.access_token;
+    try { await sbAuth('refresh_token', { refresh_token: SB.refresh_token }); } catch (e) { throw sbDrop(); }
+    return SB.access_token;
+  }
   async function sb(method, path, body, prefer) {
-    const headers = { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + CFG.supabaseKey, Accept: 'application/json' };
+    const token = await sbToken();
+    const headers = { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + token, Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (prefer) headers.Prefer = prefer;
     const res = await origFetch(CFG.supabaseUrl + '/rest/v1/' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (res.status === 401) throw sbDrop();
     if (!res.ok) throw new Error('Supabase ' + res.status + ': ' + (await res.text()).slice(0, 300));
     const txt = await res.text();
     return txt ? JSON.parse(txt) : null;
@@ -604,6 +639,8 @@
     .h{background:#13110a;color:#fff;border-bottom:3px solid #e0b000;padding:10px 14px;display:flex;align-items:center;gap:10px}
     .h b{font-size:15px}.h .sp{flex:1}
     .ses{font-size:11px;border-radius:999px;padding:1px 8px;background:#3a3a3a;color:#ddd}.ses.ok{background:#166534;color:#fff}.ses.bad{background:#991b1b;color:#fff}
+    .login{max-width:340px}.login input{display:block;box-sizing:border-box;width:100%;font:inherit;color:#121722;background:#fff;border:1px solid #dfe4ec;border-radius:8px;padding:8px 10px;margin:0 0 8px}
+    .login input:focus{outline:2px solid #e0b000;outline-offset:1px}
     .tabs{display:flex;gap:4px}
     button{font:inherit;border:1px solid #dfe4ec;background:#fff;color:#121722;border-radius:8px;padding:6px 12px;cursor:pointer}
     button:hover{border-color:#6a7585}
@@ -633,7 +670,7 @@
     .hide{display:none}
   </style>
   <div class="p">
-    <div class="h"><b>Taakplanner \u2192 basketball.nl</b><span class="ses" id="ses">sessie \u2026</span><span class="sp"></span>
+    <div class="h"><b>Taakplanner \u2192 basketball.nl</b><span class="ses" id="ses">sessie \u2026</span><span class="ses bad" id="pls">planner: niet ingelogd</span><span class="sp"></span>
       <div class="tabs"><button data-tab="off" class="on">Officials</button><button data-tab="spl">Spelers</button></div>
       <button id="x" title="Sluiten">\u2715</button></div>
     <div class="b" id="body"></div>
@@ -646,7 +683,11 @@
   const state = { tab: 'off', busy: false, run: null, done: null, imp: null, logLines: [] };
   function log(s) { state.logLines.push(s); const el = $('#log'); if (el) { el.textContent = state.logLines.slice(-200).join('\n'); el.scrollTop = el.scrollHeight; } }
   function setBusy(b) { state.busy = b; sh.querySelectorAll('.f button').forEach(x => { x.disabled = b; }); }
-  function fail(e) { setBusy(false); log('FOUT: ' + e.message); const el = $('#msg'); if (el) el.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
+  function fail(e) {
+    setBusy(false); log('FOUT: ' + e.message);
+    if (e && e.needLogin) { state.run = null; state.imp = null; cached = null; return renderLogin(e.message); }
+    const el = $('#msg'); if (el) el.innerHTML = '<p class="err">' + esc(e.message) + '</p>';
+  }
 
   $('#x').onclick = () => { host.style.display = 'none'; };
   sh.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
@@ -657,7 +698,34 @@
   let cached = null;
   async function ensureState() { if (!cached) cached = await loadState(); return cached; }
 
-  function render() { state.tab === 'off' ? renderOfficials() : renderSpelers(); }
+  function render() { if (!SB) return renderLogin(); state.tab === 'off' ? renderOfficials() : renderSpelers(); }
+
+  /* ---------- Inloggen bij de taakplanner ---------- */
+  function renderLogin(msg) {
+    const body = $('#body'), foot = $('#foot');
+    body.innerHTML = `<form class="login" id="lf" autocomplete="on">
+      <p><b>Log in bij de taakplanner</b></p>
+      <p class="muted">De database van de taakplanner is afgeschermd. Log in met het beheeraccount van de taakplanner.
+        De sessie blijft alleen in het geheugen van deze pagina; na sluiten of herladen log je opnieuw in.</p>
+      <input id="lm" type="email" placeholder="E-mailadres" aria-label="E-mailadres" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <input id="lp" type="password" placeholder="Wachtwoord" aria-label="Wachtwoord" autocomplete="current-password" required>
+      <div id="msg">${msg ? '<p class="err">' + esc(msg) + '</p>' : ''}</div>
+      <button class="pri" id="lb" type="submit">Inloggen</button>
+    </form>`;
+    foot.innerHTML = '';
+    $('#lf').onsubmit = async ev => {
+      ev.preventDefault();
+      const mail = $('#lm').value.trim(), pw = $('#lp').value;
+      if (!mail || !pw) return;
+      const btn = $('#lb'); btn.disabled = true; btn.textContent = 'Bezig…'; $('#msg').innerHTML = '';
+      try { await sbLogin(mail, pw); render(); }
+      catch (e) {
+        if (!$('#lf')) return;
+        btn.disabled = false; btn.textContent = 'Inloggen'; $('#lp').value = '';
+        $('#msg').innerHTML = '<p class="err">' + esc(e.message) + '</p>';
+      }
+    };
+  }
 
   /* ---------- Officials ---------- */
   async function renderOfficials() {
@@ -665,7 +733,7 @@
     if (state.done) return renderDone();
     if (state.run) return renderPlan();
     body.innerHTML = '<p class="muted">Gegevens laden\u2026</p>'; foot.innerHTML = '';
-    let data; try { data = await ensureState(); } catch (e) { body.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; return; }
+    let data; try { data = await ensureState(); } catch (e) { if (e.needLogin) return renderLogin(e.message); body.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; return; }
     const today = isoLocal(new Date()); const curMonday = mondayOf(today);
     const pub = [...(data.instellingen.gepubliceerd || [])].sort();
     const weekCount = w => (data.wedstrijden || []).filter(m => !m.away && m.date && mondayOf(m.date) === w).length;
@@ -846,6 +914,11 @@
     else { el.className = 'ses'; el.textContent = 'sessie\u2026'; if (st) log(st); }
   };
   if (TOKEN) tokenStatus(true);
+  plannerStatus = ok => {
+    const el = $('#pls'); if (!el) return;
+    el.className = ok ? 'ses ok' : 'ses bad'; el.textContent = ok ? 'planner ok' : 'planner: niet ingelogd';
+    if (ok) log('Ingelogd bij de taakplanner');
+  };
   root.__zoebasSync = { show() { attach(); host.style.display = ''; } };
   render();
   ensureToken().catch(e => log(e.message));
